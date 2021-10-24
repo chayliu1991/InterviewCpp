@@ -390,6 +390,137 @@ ping 联通性测试 :
 
 ![](./img/type11.png)
 
+# 多播与 IGMP 协议  
+
+## 广播与组播  
+
+![](./img/broadcast2.png)
+
+## 广播地址  
+
+- 以太网地址： ff:ff:ff:ff:ff:ff
+- IP 地址  
+
+![](./img/broadcast_ip.png)
+
+## 组播地址  
+
+组播 IP 地址，预留组播地址：
+
+- 224.0.0.1： 子网内的所有系统组
+- 224.0.0.2： 子网内的所有路由器组
+- 224.0.1.1： 用于 NTP 同步系统时钟
+- 224.0.0.9： 用于 RIP-2 协议
+
+![](./img/group_broadcast.png)
+
+组播以太网地址：01:00:5e:00:00:00 到 01:00:5e:7f:ff:ff  
+
+低 23 位：映射 IP 组播地址至以太网地址：
+
+![](./img/group_broadcast_mac.png)
+
+## IGMP  
+
+IGMP（Internet Group Management Protocol）协议  
+
+![](./img/igmp.png)
+
+Type 类型
+- 0x11 Membership Query [RFC3376]
+- 0x22 Version 3 Membership Report [RFC3376]
+- 0x12 Version 1 Membership Report [RFC-1112]
+- 0x16 Version 2 Membership Report [RFC-2236]
+- 0x17 Version 2 Leave Group [RFC-2236]
+
+0x22 Membership Report：状态变更通知  
+
+![](./img/type22.png)
+
+Group Record 格式：
+
+Record Type 类型
+- 当前状态
+	- 1: MODE_IS_INCLUDE
+	- 2: MODE_IS_EXCLUDE
+- 过滤模式变更（如从 INCLUDE 奕为 EXCLUDE）
+	- 3: CHANGE_TO_INCLUDE
+	- 4: CHANGE_TO_EXCLUDE
+- 源地址列表变更（过滤模式同时决定状态）
+	- 5: ALLOW_NEW_SOURCES
+	- 6: BLOCK_OLD_SOURCES
+
+![](./img/record_type.png)
+
+# 支持万物互联的 IPv6 地址  
+
+## IPv6 目的  
+
+- 更大的地址空间：128 位长度
+- 更好的地址空间管理
+- 消除了 NAT 等寻址技术
+- 更简易的 IP 配置管理
+- 优秀的选路设计
+- 更好的多播支持
+- 安全性
+- 移动性
+
+## IPv6 地址的冒分十六进制表示法  
+
+![](./img/ipv6.png)
+
+- 首零去除
+- 零压缩
+	- FF00:4501:0:0:0:0:0:32
+		- FF00:4501::32
+	- 805B:2D9D:DC28:0:0:FC57:0:0
+		- 805B:2D9D:DC28::FC57:0:0
+		- 805B:2D9D:DC28:0:0:FC57::
+	- 环回地址0:0:0:0:0:0:0:1
+		- ::1
+
+## IPv6 地址分布  
+
+![](./img/ipv6_dis.png)
+
+## 不同作用域下的多播  
+
+Scope ID
+- 14：全局作用域
+- 8：组织作用域
+- 5：场点作用域
+- 2：本地链路作用域
+- 1：本机作用域
+
+![](./img/global_scope.png)
+
+![](./img/scope_id.png)
+
+## 网络地址与主机地址  
+
+![](./img/ipv6_address.png)
+
+- 全局路由前缀：48
+	- 可任意划分为多级
+- 子网ID：16
+	- 可任意划分为多级
+- 接口ID：64
+	- 直接映射 MAC 地址
+
+## IEEE802 48 位 MAC 地址映射主机地址（EUI-64）  
+
+![](./img/eui64.png)
+
+- 取 OUI(组织唯一标识)放左 24 比特
+- 中间 16 比特置为 FFFE
+- 置 OUI 第 7 位为 1 表示全局
+
+# IPv6 报文及分片  
+
+
+
+
+
 
 
 
