@@ -417,7 +417,7 @@ SWS 避免算法:
 
 - 当接收到 3 个重复的失序 ACK 段（4 个相同的失序 ACK 段）时，不再等待重传定时器的触发，立刻基于快速重传机制重发报文段  
 
-### 快速重传
+### 快速恢复
 
 快速重传不会进入慢启动，启动快速重传且正常未失序 ACK 段到达前，启动快速恢复  
 
@@ -429,10 +429,175 @@ SWS 避免算法:
 
 ## SACK 与选择性重传算法  
 
-仅重传丢失段保守乐观  
+仅重传丢失段：
+
+- Client 无法告知收到了 Part4
+- Server 发送窗口/Client 接收窗口停  
 
 ![](./img/tcp_miss_package_opti.png)
 
-Client 无法告知收到了 Part4
-• Server 发送窗口/Client 接收窗口停  
+重传所有段：
 
+重传所有段：积极悲观：可能浪费带宽
+
+仅重传丢失段：保守乐观，大量丢包时效率低下  
+
+![](./img/tcp_miss_package_pess.png)
+
+### TCP Selective Acknowledgment  
+
+![](./img/tcp_sack.png)
+
+![](./img/tcp_ack2.png)
+
+## 从丢包到测量驱动的拥塞控制算法  
+
+飞行中的数据与确认报文：
+
+![](./img/tcp_fly_package.png)
+
+大管道向小管道传输数据引发拥堵：
+
+![](./img/tcp_blocked.png)
+
+基于丢包的拥塞控制点
+
+- 高时延，大量丢包
+- 随着内存便宜，时延更高  
+
+最佳控制点
+
+- 最大带宽下
+- 最小时延
+- 最低丢包率  
+
+![](./img/tcp_blocked_control_point.png)
+
+## Google BBR 拥塞控制算法原理  
+
+BBR：TCP Bottleneck Bandwidth and Round-trip propagation time  
+
+BBR 如何找到准确的 RTprop 和 BtlBw？  
+
+RTT 里有排队噪声，ACK 延迟确认、网络设备排队
+什么是 RTprop？是物理属性
+
+![](./img/tcp_rtprop.png)
+
+
+
+# 四次握手关闭连接  
+
+![](./img/tcp_close.png)
+
+![](./img/tcp_close_sametime.png)
+
+## TCP 状态机  
+
+11 种状态
+
+- CLOSED
+- LISTEN
+- SYN-SENT
+- SYN-RECEIVED
+- ESTABLISHED
+- CLOSE-WAIT
+- LAST-ACK
+- FIN-WAIT1
+- FIN-WAIT2
+- CLOSING
+- TIME-WAIT  
+
+3 种事件
+
+- SYN
+- FIN
+- ACK  
+
+![](./img/tcp_statemachine.png)
+
+## 优化关闭连接时的TIME-WAIT状态  
+
+MSL(Maximum Segment Lifetime)：报文最大生存时间
+
+维持 2MSL 时长的 TIME-WAIT 状态：保证至少一次报文的往返时间内端口是不可复用  
+
+![](./img/tcp_timewait.png)
+
+linux下TIME_WAIT优化：
+
+net.ipv4.tcp_tw_reuse = 1
+
+- 开启后，作为客户端时新连接可以使用仍然处于 TIME-WAIT 状态的端口
+- 由于 timestamp 的存在，操作系统可以拒绝迟到的报文，net.ipv4.tcp_timestamps = 1  
+
+![](./img/tcp_tw_reuse.png)
+
+net.ipv4.tcp_tw_recycle = 0  
+
+- 开启后，同时作为客户端和服务器都可以使用 TIME-WAIT 状态的端口
+- 不安全，无法避免报文延迟、重复等给新连接造成混乱  
+
+net.ipv4.tcp_max_tw_buckets = 262144  
+
+- time_wait 状态连接的最大数量  
+- 超出后直接关闭连接  
+
+## RST 复位报文  
+
+![](./img/tcp_rst.png)
+
+# keepalive 、校验和及带外数据  
+
+## TCP 的 Keep-Alive 功能  
+
+Linux 的 tcp keepalive
+
+- 发送心跳周期
+  - Linux: net.ipv4.tcp_keepalive_time = 7200
+- 探测包发送间隔
+  - net.ipv4.tcp_keepalive_intvl = 75
+- 探测包重试次数
+  - net.ipv4.tcp_keepalive_probes = 9  
+
+## 违反分层原则的校验和  
+
+对关键头部数据（12字节）+ TCP 数据执行校验和计算，计算中假定 checksum 为 0  
+
+![](./img/tcp_checksum.png)
+
+应用调整 TCP 发送数据的时机：
+
+![](./img/tcp_push.png)
+
+紧急处理数据：
+
+![](./img/tcp_urg.png)
+
+# 面向字节流的 TCP 连接如何多路复用  
+
+## Multiplexing 多路复用  
+
+在一个信道上传输多路信号或数据流的过程和技术  
+
+非阻塞 socket：同时处理多个 TCP 连接：
+
+![](./img/tcp_nonblocked_io.png)
+
+epoll+非阻塞 socket：
+
+![](./img/epoll.png)
+
+活跃连接只在总连接的一小部分：
+
+![](./img/epoll2.png)
+
+# 四层负载均衡可以做什么？  
+
+![](./img/load_balancing.png)
+
+![](./img/load_balancing2.png)
+
+![](./img/load_balancing3.png)
+
+![](./img/load_balancing4.png)
