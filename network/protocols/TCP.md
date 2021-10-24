@@ -314,3 +314,125 @@ bps*RTT
   - 系统无内存压力、启动压力模式阀值、最大值，单位为页的数量
 - net.ipv4.tcp_moderate_rcvbuf = 1
   - 开启自动调整缓存模式
+
+# 减少小报文提高网络效率  
+
+## SWS(Silly Window syndrome)糊涂窗口综合症  
+
+![](./img/tcp_sws.png)
+
+SWS 避免算法:
+
+- 接收方
+  - David D Clark 算法：窗口边界移动值小于 min（MSS, 缓存/2）时，通知窗口为 0  
+
+- 发送方  
+  - Nagle 算法：TCP_NODELAY 用于关闭 Nagle 算法
+  - 没有已发送未确认报文段时，立刻发送数据
+  - 存在未确认报文段时，直到：
+    - 没有已发送未确认报文段
+    - 或者数据长度达到 MSS 时再发送  
+
+![](./img/tcp_nagle.png)
+
+## TCP delayed acknowledgment 延迟确认  
+
+- 当有响应数据要发送时,ack 会随着响应数据立即发送给对方
+- 如果没有响应数据,ack 的发 送将会有一个延迟,以等待看是否有响应数据可以一起发送
+- 如果在等待发送 ack 期间,对方的第二个数据段又到达了,这时要立即发送 ack  
+
+## Nagle VS delayed ACK  
+
+- 关闭 delayed ACK：TCP_QUICKACK  
+- 关闭 Nagle：TCP_NODELAY  
+
+![](./img/tcp_nagle_ackdelay.png)
+
+## Linux 上更为激进的”Nagle”：TCP_CORK  
+
+结合 sendfile 零拷贝技术使用。
+
+# 拥塞控制  
+
+## 拥塞控制历史
+以丢包作为依据
+
+- New Reno：RFC6582
+- BIC：Linux2.6.8 – 2.6.18
+- CUBIC（RFC8312）：Linux2.6.19
+
+以探测带宽作为依据
+
+- BBR：Linux4.9  
+
+## 慢启动  
+
+拥塞窗口cwnd（congestion window）
+
+- 通告窗口rwnd（receiver‘s advertised window）
+- 发送窗口swnd = min(cwnd，rwnd)  
+
+每收到一个ACK，cwnd扩充一倍  
+
+![](./img/tcp_cwnd.png)
+
+慢启动初始窗口 IW(Initial Window)的变迁:
+
+- 1 SMSS：RFC2001（1997）
+- 2 - 4 SMSS：RFC2414（1998）
+  - IW = min (4*SMSS, max (2*SMSS, 4380bytes))
+- 10 SMSS：RFC6928（2013）
+  - IW = min (10*MSS, max (2*MSS, 14600))  
+
+## 拥塞避免  
+
+慢启动阈值 ssthresh(slow start threshold)：
+
+达到 ssthresh 后，以线性方式增加 cwnd： cwnd += SMSS*SMSS/cwnd  
+
+![](./img/tcp_sthresh.png)
+
+慢启动与拥塞控制：
+
+![](./img/tcp_sstart_ssthresh.png)
+
+## 快速重传与快速恢复  
+
+- 若报文丢失，将会产生连续的失序 ACK 段
+- 若网络路径与设备导致数据段失序，将会产生少量的失序 ACK 段
+- 若报文重复，将会产生少量的失序 ACK 段  
+
+![](./img/tcp_miss_sequence.png)
+
+### 快速重传  
+
+![](./img/tcp_quick_resend.png)
+
+接收方：
+
+- 当接收到一个失序数据段时，立刻发送它所期待的缺口 ACK 序列号
+- 当接收到填充失序缺口的数据段时，立刻发送它所期待的下一个 ACK 序列号  
+
+发送方
+
+- 当接收到 3 个重复的失序 ACK 段（4 个相同的失序 ACK 段）时，不再等待重传定时器的触发，立刻基于快速重传机制重发报文段  
+
+### 快速重传
+
+快速重传不会进入慢启动，启动快速重传且正常未失序 ACK 段到达前，启动快速恢复  
+
+![](./img/tcp_quick_reset.png)
+
+- 将 ssthresh 设置为当前拥塞窗口cwnd 的一半，设当前 cwnd 为 ssthresh 加上 3*MSS
+- 每收到一个重复 ACK，cwnd 增加 1个 MSS
+- 当新数据 ACK 到达后，设置 cwnd 为 ssthresh  
+
+## SACK 与选择性重传算法  
+
+仅重传丢失段保守乐观  
+
+![](./img/tcp_miss_package_opti.png)
+
+Client 无法告知收到了 Part4
+• Server 发送窗口/Client 接收窗口停  
+
