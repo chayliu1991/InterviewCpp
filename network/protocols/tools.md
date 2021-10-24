@@ -92,7 +92,7 @@
 指定协议类型
 
 - ether、fddi、tr、 wlan、 ip、 ip6、 arp、 rarp、 decnet、 tcp、udp、icmp、igmp、icmp、
-  igrp、pim、ah、esp、vrrp  
+- igrp、pim、ah、esp、vrrp  
 
 ### 其他
 
