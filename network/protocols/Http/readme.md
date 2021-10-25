@@ -252,6 +252,8 @@ Connection 头部
 
 Connection 仅针对当前连接有效，user agent 与 origin server 间有层层 proxy 代理  
 
+![](./img/proxy.png)
+
 
 
 
