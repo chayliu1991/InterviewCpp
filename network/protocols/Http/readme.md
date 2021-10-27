@@ -545,21 +545,235 @@ If-Range = entity-tag / HTTP-date，可以使用 Etag 或者 Last-Modified
 
 ![](./img/cookie.png)
 
+## Cookie 与 Set-Cookie头部的定义  
 
+- Cookie 头部中可以存放多个 name/value 名值对  
+- Set-Cookie 头部一次只能传递 1 个 name/value 名值对，响应中可以含多个头部  
 
+## Set-Cookie 中描述 cookie-pair 的属性  
 
+cookie-av = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av  
 
+- expires-av = "Expires=" sane-cookie-date  
+  - cookie 到日期 sane-cookie-date 后失效  
+- max-age-av = "Max-Age=" non-zero-digit *DIGIT  
+  - cookie 经过 *DIGIT 秒后失效。max-age 优先级高于 expires  
+- domain-av = "Domain=" domain-value  
+  - 指定 cookie 可用于哪些域名，默认可以访问当前域名  
+- path-av = "Path=" path-value  
+  - 指定 Path 路径下才能使用 cookie  
+- secure-av = "Secure“  
+  - 只有使用 TLS/SSL 协议（https）时才能使用 cookie  
+- httponly-av = "HttpOnly“  
+  - 不能使用 JavaScript（Document.cookie 、XMLHttpRequest 、Request APIs）访问到 cookie  
 
+## Cookie 使用的限制  
 
+RFC 规范对浏览器使用 Cookie 的要求  
 
+- 每条 Cookie 的长度（包括 name、value 以及描述的属性等总长度）至于要达到 4KB  
+- 每个域名下至少支持 50 个 Cookie  
+- 至少要支持 3000 个 Cookie  
 
+代理服务器传递 Cookie 时会有限制  
 
+##　Cookie 在协议设计上的问题  
 
+- Cookie 会被附加在每个 HTTP 请求中，所以无形中增加了流量  
+- 由于在 HTTP 请求中的 Cookie 是明文传递的，所以安全性成问题（除非用 HTTPS）  
+- Cookie 的大小不应超过 4KB，故对于复杂的存储需求来说是不够用的  
 
+## 登录场景下 Cookie 与 Session 的常见用法  
 
+![](./img/loggin_session.png)
 
+## 无状态的 REST 架构 VS 状态管理  
 
+### 应用状态与资源状态  
 
+应用状态：应由客户端管理，不应由服务器管理
 
+- 如浏览器目前在哪一页
+- REST 架构要求服务器不应保存应用状态  
 
+资源状态：应由服务器管理，不应由客户端管理  
+
+- 如数据库中存放的数据状态，例如用户的登陆信息  
+
+### HTTP 请求的状态  
+
+有状态的请求：服务器端保存请求的相关信息，每个请求可以使用以前保留的请求相关信息  
+
+- 服务器 session 机制使服务器保存请求的相关信息
+- cookie 使请求可以携带查询信息，与 session 配合完成有状态的请求  
+
+无状态的请求：服务器能够处理的所有信息都来自当前请求所携带的信息  
+
+- 服务器不会保存 session 信息
+- 请求可以通过 cookie 携带  
+
+# 为什么需要同源策略？  
+
+同一个浏览器发出的请求，未必都是用户自愿发出的请求
+
+只有 page.html 是用户发出的，其他请求是浏览器自动发出的： 
+
+![](./img/auto_send_request.png)
+
+站点 domain-b.com 收到的来自同一浏览器的请求，可能来自于站点domain-a.com：
+
+![](./img/mixed_send_request.png)
+
+## 没有同源策略下的 Cookie  
+
+只能保证用户请求来自于同一浏览器，不能确保是用户自愿发出的  
+
+![](./img/cookie_check.png)
+
+- 访问站点 A 后，站点 A 通过 Set-Cookie：Cookie 头部将 Cookie 返回给浏览器  
+- 浏览器会保存 Cookie，留待下次访问
+- 站点 B 的脚本访问站点 A 时，浏览器会自动将 Cookie: cookie 添加到请求的头部访问站点 A ，提升用户体验  
+- 站点 A 的鉴权策略：取出 Cookie 值与数据库或者缓存中的 token 验证，通过后将数据赋予请求继续处理  
+
+## 浏览器的同源策略  
+
+限制了从同一个源加载的文档或脚本如何与来自另一个源的资源进行交互  
+
+- 何谓同源？协议、主机、端口必须完全相同  
+
+## 安全性与可用性需要一个平衡点  
+
+可用性：HTML 的创作者决定跨域请求是否对本站点安全  
+
+- 带有 src 属性可以跨域访问  
+- 允许跨域写操作：例如表单提交或者重定向请求，CSRF安全性问题  
+
+安全性：浏览器需要防止站点 A 的脚本向站点 B 发起危险动作  
+
+- Cookie、LocalStorage 和 IndexDB 无法读取
+- DOM 无法获得（防止跨域脚本篡改 DOM 结构）
+- AJAX 请求不能发送  
+
+### 跨站请求伪造攻击  
+
+CSRF，Cross-Site Request Forgery：
+
+![](./img/csrf.png)
+
+CSRF 的一种防攻击方式：
+
+![](./img/csrf2.png)
+
+### CORS：Cross-Origin Resource Sharing  
+
+浏览器同源策略下的跨域访问解决方案：
+
+- 如果站点 A 允许站点 B 的脚本访问其资源，必须在 HTTP 响应中显式的告知浏览器：站点 B 是被允许的  
+  - 访问站点 A 的请求，浏览器应告知该请求来自站点 B 
+  - 站点 A 的响应中，应明确哪些跨域请求是被允许的   
+
+策略 1：何为简单请求？  
+
+- GET/HEAD/POST 方法之一
+- 仅能使用 CORS 安全的头部：Accept、Accept-Language、Content-Language、Content-Type
+- Content-Type 值只能是： text/plain、multipart/form-data、application/x-www-form-urlencoded 三者其中之一  
+
+策略 2：简单请求以外的其他请求  
+
+- 访问资源前，需要先发起 prefilght 预检请求（方法为 OPTIONS）询问何种请求是被允许的  
+
+### 简单请求的跨域访问  
+
+- 请求中携带 Origin 头部告知来自哪个域
+- 响应中携带 Access-Control-Allow-Origin 头部表示允许哪些域
+- 浏览器放行  
+
+![](./img/csrf3.png)
+
+### 预检请求  
+
+预检请求头部
+
+- Access-Control-Request-Method
+- Access-Control-Request-Headers  
+
+预检请求响应
+
+- Access-Control-Allow-Methods
+- Access-Control-Allow-Headers
+- Access-Control-Max-Age  
+
+![](./img/access_control_request.png)
+
+### 跨域访问资源：请求头部  
+
+请求头部
+
+- Origin：一个页面的资源可能来自于多个域名，在 AJAX 等子请求中标明来源于某个域名下的脚本，以通过服务器的安全校验  
+- Access-Control-Request-Method  
+  - 在 preflight 预检请求 (OPTIONS) 中，告知服务器接下来的请求会使用哪些方法  
+- Access-Control-Request-Headers  
+  - 在 preflight 预检请求 (OPTIONS) 中，告知服务器接下来的请求会传递哪些头部  
+
+### 跨域访问资源：响应头部  
+
+响应头部
+- Access-Control-Allow-Methods
+  - 在 preflight 预检请求的响应中，告知客户端后续请求允许使用的方法
+- Access-Control-Allow-Headers
+  - 在 preflight 预检请求的响应中，告知客户端后续请求允许携带的头部
+- Access-Control-Max-Age
+  - 在 preflight 预检请求的响应中，告知客户端该响应的信息可以缓存多久
+- Access-Control-Expose-Headers
+  - 告知浏览器哪些响应头部可以供客户端使用，默认情况下只有 Cache-Control、Content-Language、Content-Type、Expires、Last-Modified、Pragma 可供使用
+- Access-Control-Allow-Origin
+  - 告知浏览器允许哪些域访问当前资源，*表示允许所有域。为避免缓存错乱，响应中需要携带 Vary: Origin
+- Access-Control-Allow-Credentials
+  - 告知浏览器是否可以将 Credentials 暴露给客户端使用，Credentials 包含 cookie、authorization 类头部、TLS证书等
+
+# 资源 URI 与资源表述 Representation  
+
+资源 R 可被定义为随时间变化的函数 MR(t)  
+
+- 静态资源：创建后任何时刻值都不变，例如指定版本号的库文件
+- 动态资源：其值随时间而频繁地变化，例如某新闻站点首页  
+
+优点：
+
+- 提供了无需人为设定类型或者实现方式的情况下，同一资源多种不同来源的信息  
+- 基于请求特性进行内容协商，使资源的渲染延迟绑定  
+- 允许表述概念而不是具体的 Representation，故资源变化时不用修改所有链接  
+
+## Preconditon 条件请求  
+
+目的：由客户端携带条件判断信息，而服务器预执行条件验证过程成功后，再返回资源的表述  
+
+常见应用场景：
+
+- 使缓存的更新更有效率  
+- 断点续传时对之前内容的验证  
+- 当多个客户端并行修改同一资源时，防止某一客户端的更新被错误丢弃  
+
+## 强验证器与弱验证器的概念  
+
+验证器 validator：根据客户端请求中携带的相关头部，以及服务器资源的信息，执行两端的资源验证  
+
+- 强验证器：服务器上的资源表述只要有变动（例如版本更新或者元数据更新），那么以旧的验证头部访问一定会导致验证不过
+- 弱验证器：服务器上资源变动时，允许一定程度上仍然可以验证通过（例如一小段时间内仍然允许缓存有效）  
+
+## 验证器响应头部  
+
+Etag 响应头部，给出当前资源表述的标签  
+
+Last-Modified 响应头部，表示对应资源表述的上次修改时间  
+
+## 条件请求头部  
+
+- If-Match = 
+- If-None-Match = 
+-  If-Modified-Since =
+- If-Unmodified-Since =
+- If-Range =   
+
+## 缓存更新  
 
