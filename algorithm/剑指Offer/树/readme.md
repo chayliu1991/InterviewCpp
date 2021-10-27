@@ -52,67 +52,7 @@ public:
 };
 ```
 
-# [34. 二叉树中和为某一值的路径](https://leetcode-cn.com/problems/er-cha-shu-zhong-he-wei-mou-yi-zhi-de-lu-jing-lcof/)
 
-```
-class Solution {
-public:
-    vector<vector<int>> pathSum(TreeNode* root, int target) {
-        std::vector<std::vector<int>> res;
-        std::vector<int> path;
-        dfs(root,target,res,path);
-        return res;
-    }
-
-    void dfs(TreeNode* root,int sum,std::vector<std::vector<int>>& res,std::vector<int>& path)
-    {
-        if(root == nullptr)
-            return;
-        path.push_back(root->val);
-        sum -= root->val;
-        if(root->left == nullptr && root->right == nullptr && sum == 0)
-            res.push_back(path);
-        dfs(root->left,sum,res,path);
-        dfs(root->right,sum,res,path);
-        path.pop_back();
-    }
-};
-```
-
-# [36. 二叉搜索树与双向链表](https://leetcode-cn.com/problems/er-cha-sou-suo-shu-yu-shuang-xiang-lian-biao-lcof/)
-
-```
-
-class Solution {
-public:
-    void inorder(Node* root,std::vector<Node*>& vec)
-    {
-        if(root == nullptr)
-            return;
-        inorder(root->left,vec);
-        vec.push_back(root);
-        inorder(root->right,vec);
-    }
-
-    Node* treeToDoublyList(Node* root) 
-    {
-        if(root == nullptr)
-            return nullptr;
-
-        vector<Node*> vec;
-        inorder(root,vec);
-        for(int i = 1;i < vec.size();i++)
-        {
-            vec[i-1]->right = vec[i];
-            vec[i]->left = vec[i-1];
-        }
-
-        vec.back()->right = vec.front();
-        vec.front()->left = vec.back();
-        return vec.front();
-    }
-};
-```
 
 # [37. 序列化二叉树](https://leetcode-cn.com/problems/xu-lie-hua-er-cha-shu-lcof/)
 
@@ -170,31 +110,7 @@ public:
 };
 ```
 
-# [54. 二叉搜索树的第k大节点](https://leetcode-cn.com/problems/er-cha-sou-suo-shu-de-di-kda-jie-dian-lcof/)
 
-```
-class Solution {
-public:
-    void inorder(TreeNode* root,std::vector<int>& vec)
-    {
-        if(root == nullptr)
-            return;
-        inorder(root->left,vec);
-        vec.push_back(root->val);
-        inorder(root->right,vec);
-    } 
-
-    int kthLargest(TreeNode* root, int k) {
-        std::vector<int> vec;
-        inorder(root,vec);
-
-        if(vec.size() < k)
-            return -1;
-        std::reverse(vec.begin(),vec.end());
-        return vec[k-1];
-    }
-};
-```
 
 # [55 - I. 二叉树的深度](https://leetcode-cn.com/problems/er-cha-shu-de-shen-du-lcof/)
 

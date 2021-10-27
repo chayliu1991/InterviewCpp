@@ -394,6 +394,167 @@ localization（l10n，l 和 n 间有 10 个字符）， 指内容协商时，根
 
 # HTTP 包体：承载的消息内容  
 
+## 请求或者响应都可以携带包体  
+
+HTTP-message = start-line *( header-field CRLF ) CRLF [ message-body ]  
+
+- message-body = *OCTET：二进制字节流  
+
+以下消息不能含有包体：
+
+-  HEAD 方法请求对应的响应  
+- 1xx、204、304 对应的响应  
+- CONNECT 方法对应的 2xx 响应  
+
+## 两种传输 HTTP 包体的方式  
+
+发送 HTTP 消息时已能够确定包体的全部长度  
+
+- 使用 Content-Length 头部明确指明包体长度  
+- Content-Length = 1*DIGIT，用 10 进制（不是 16 进制）表示包体中的字节个数，且必须与实际传输的包体长度一致  
+- 接收端处理更简单  
+
+发送 HTTP 消息时不能确定包体的全部长度  
+
+- 使用 Transfer-Encoding 头部指明使用 Chunk 传输方式  
+- 含 Transfer-Encoding 头部后 Content-Length 头部应被忽略  
+- 优点  
+  - 基于长连接持续推送动态内容  
+  - 压缩体积较大的包体时，不必完全压缩完（计算出头部）再发送，可以边发送边压缩  
+  - 传递必须在包体传输完才能计算出的 Trailer 头部  
+
+## Trailer 头部的传输   
+
+- TE 头部：客户端在请求在声明是否接收 Trailer 头部  
+  - TE: trailers  
+- Trailer 头部：服务器告知接下来 chunk 包体后会传输哪些 Trailer 头部  
+  - Trailer: Date  
+- 以下头部不允许出现在 Trailer 的值中：  
+  - 用于信息分帧的首部 (例如 Transfer-Encoding 和 Content-Length)  
+  - 用于路由用途的首部 (例如 Host)  
+  - 请求修饰首部 (例如控制类和条件类的，如 Cache-Control，Max-Forwards，或者 TE)  
+  - 身份验证首部 (例如 Authorization 或者 Set-Cookie)  
+  - Content-Encoding, Content-Type, Content-Range，以及 Trailer 自身  
+
+## MIME  
+
+MIME（ Multipurpose Internet Mail Extensions ）  
+
+大小写不敏感，但通常是小写  
+
+## Content-Disposition 头部  
+
+disposition-type = "inline" | "attachment" | disp-ext-type  
+
+- inline：指定包体是以 inline 内联的方式，作为页面的一部分展示  
+- attachment：指定浏览器将包体以附件的方式下载  
+- 在 multipart/form-data 类型应答中，可以用于子消息体部分  
+
+# HTML FORM 表单  
+
+HTML：HyperText Markup Language，结构化的标记语言（非编程语言），浏览器可以将 HTML 文件渲染为可视化网页  
+
+FORM 表单：HTML 中的元素，提供了交互控制元件用来向服务器通过 HTTP 协议提交信息，常见控件有：  
+
+- Text Input Controls：文本输入控件
+- Checkboxes Controls：复选框控件
+- Radio Box Controls ：单选按钮控件
+- Select Box Controls：下拉列表控件
+- File Select boxes：选取文件控件
+- Clickable Buttons：可点击的按钮控件
+- Submit and Reset Button：提交或者重置按钮控件
+
+## HTML FORM 表单提交请求时的关键属性  
+
+- action：提交时发起 HTTP 请求的 URI  
+- method：提交时发起 HTTP 请求的 http 方法  
+  - GET：通过 URI，将表单数据以 URI 参数的方式提交  
+  - POST：将表单数据放在请求包体中提交  
+- enctype：在 POST 方法下，对表单内容在请求包体中的编码方式  
+  - application/x-www-form-urlencoded
+    - 数据被编码成以 ‘&’ 分隔的键-值对, 同时以 ‘=’ 分隔键和值，字符以 URL 编码方式编码  
+  - multipart/form-data
+    - boundary 分隔符  
+    - 每部分表述皆有HTTP头部描述子包体，例如 Content-Type  
+    - last boundary 结尾  
+
+##　multipart：一个包体中多个资源表述  
+
+- Content-type 头部指明这是一个多表述包体  
+  - Content-type: multipart/form-data;  
+  - boundary=----WebKitFormBoundaryRRJKeWfHPGrS4LKe  
+- Boundary 分隔符的格式  
+
+# HTTP Range规范  
+
+允许服务器基于客户端的请求只发送响应包体的一部分给到客户端，而客户端自动将多个片断的包体组合成完整的体积更大的包体
+
+- 支持断点续传
+- 支持多线程下载
+- 支持视频播放器实时拖动  
+
+服务器通过 Accept-Range 头部表示是否支持 Range 请求  
+
+## Range 请求范围的单位  
+
+基于字节，设包体总长度为 10000：
+
+- 第 1 个 500 字节：bytes=0-499  
+- 第 2 个 500 字节：
+  - bytes=500-999
+  - bytes=500-600,601-999
+  - bytes=500-700,601-999  
+- 最后 1 个 500 字节：
+  - bytes=-500  
+  - bytes=9500-  
+  - 仅要第 1 个和最后 1 个字节：bytes=0-0,-1  
+
+## Range 条件请求  
+
+如果客户端已经得到了 Range 响应的一部分，并想在这部分响应未过期的情况下，获取其他部分的响应，常与 If-Unmodified-Since 或者 If-Match 头部共同使用   
+
+If-Range = entity-tag / HTTP-date，可以使用 Etag 或者 Last-Modified  
+
+## 服务器响应  
+
+206 Partial Content：  
+
+- Content-Range 头部：显示当前片断包体在完整包体中的位置  
+
+416 Range Not Satisfiable：
+
+- 请求范围不满足实际资源的大小，其中 Content-Range 中的 completelength 显示完整响应的长度  
+
+200 OK：
+
+- 服务器不支持 Range 请求时，则以 200 返回完整的响应包体  
+
+## 多重范围与 multipart  
+
+请求：  Range: bytes=0-50, 100-150  
+
+响应：  Content-Type：multipart/byteranges; boundary=…  
+
+# Cookie  
+
+保存在客户端、由浏览器维护、表示应用状态的 HTTP 头部  
+
+- 存放在内存或者磁盘中  
+- 服务器端生成 Cookie 在响应中通过Set-Cookie 头部告知客户端（允许多个 Set-Cookie 头部传递多个值）  
+- 客户端得到 Cookie 后，后续请求都会自动将 Cookie 头部携带至请求中  
+
+![](./img/cookie.png)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
