@@ -110,44 +110,6 @@ public:
 };
 ```
 
-
-
-# [55 - I. 二叉树的深度](https://leetcode-cn.com/problems/er-cha-shu-de-shen-du-lcof/)
-
-```
-class Solution {
-public:
-    int maxDepth(TreeNode* root) {
-        if(root == nullptr)
-            return 0;
-        return max(maxDepth(root->left),maxDepth(root->right)) + 1;
-    }
-};
-```
-
-# [55 - II. 平衡二叉树](https://leetcode-cn.com/problems/ping-heng-er-cha-shu-lcof/)
-
-```
-class Solution {
-public:
-    bool isBalanced(TreeNode* root) {
-        if(root == nullptr)
-            return true;
-        int ld = height(root->left);
-        int rd = height(root->right);
-
-        return abs(ld - rd) <= 1 && isBalanced(root->left) && isBalanced(root->right);
-    }
-
-    int height(TreeNode* root)
-    {
-        if(root == nullptr)
-            return 0;
-        return max(height(root->left),height(root->right)) + 1;
-    }
-};
-```
-
 # [68 - I. 二叉搜索树的最近公共祖先](https://leetcode-cn.com/problems/er-cha-sou-suo-shu-de-zui-jin-gong-gong-zu-xian-lcof/)
 
 ```
