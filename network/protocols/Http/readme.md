@@ -777,3 +777,308 @@ Last-Modified 响应头部，表示对应资源表述的上次修改时间
 
 ## 缓存更新  
 
+首次缓存：
+
+## ![](./img/cache_update.png)
+
+基于过期缓存发起条件请求：
+
+![](./img/cache_update2.png)
+
+增量更新：
+
+当服务器支持 Range服务时，连接意外中断时已接收到部分数据：
+
+![](./img/cache_update3.png)
+
+通过 Range 请求下载其他包体时，加入验证器防止两次下载间资源已发生了变更：
+
+![](./img/cache_update4.png)
+
+如果两次下载操作中，资源已经变量，则服务器用 412 通知客户端，而客户端重新下载完整包体  
+
+![](./img/cache_update5.png)
+
+通过 If-Range 头部可以避免 2 次请求交互带来的损耗：
+
+![](./img/cache_update6.png)
+
+更新资源意味着 2 步操作：先获取资源，再把本地修改后的资源提交  
+
+![](./img/cache_update7.png)
+
+2 个客户端并发修改同一资源会导致更新丢失  
+
+![](./img/cache_update8.png)
+
+## 乐观锁  
+
+只允许第 1 个提交更新的客户端更新资源  
+
+![](./img/optimistic_lock.png)
+
+乐观锁解决首次上传  
+
+![](./img/optimistic_lock2.png)
+
+## HTTP 缓存  
+
+为当前请求复用前请求的响应
+
+- 目标：减少时延；降低带宽消耗  
+- 可选而又必要  
+
+![](./img/http_cache.png)
+
+如果缓存没有过期：
+
+![](./img/http_cache2.png)
+
+如果缓存过期，则继续从服务器验证：
+
+![](./img/http_cache3.png)
+
+## 私有缓存与共享缓存  
+
+- 私有缓存：仅供一个用户使用的缓存，通常只存在于如浏览器这样的客户端上  
+- 共享缓存：可以供多个用户的缓存，存在于网络中负责转发消息的代理服务器（对热点资源常使用共享缓存，以减轻源服务器的压力，并提升网络效率）  
+  - Authentication 响应不可被代理服务器缓存  
+  - 正向代理  
+  - 反向代理  
+
+过期的共享缓存--代理服务器  
+
+![](./img/outdate_cache.png)
+
+## 判断缓存是否过期  
+
+response_is_fresh = (freshness_lifetime > current_age)  
+
+freshness_lifetime：按优先级，取以下响应头部的值  
+
+s-maxage > max-age > Expires > 预估过期时间  
+
+例如：
+• Cache-Control: s-maxage=3600
+• Cache-Control: max-age=86400
+• Expires: Fri, 03 May 2019 03:15:20 GMT
+• Expires = HTTP-date，指明缓存的绝对过期时间  
+
+常见的预估时间：RFC7234 推荐：（DownloadTime– LastModified)*10%   
+
+### Age 头部及 current_age 的计算  
+
+Age 表示自源服务器发出响应（或者验证过期缓存），到使用缓存的响应发出时经过的秒数  
+
+对于代理服务器管理的共享缓存，客户端可以根据 Age 头部判断缓存时间：Age = delta-seconds  
+
+current_age 计算：current_age = corrected_initial_age + resident_time;  
+
+- resident_time = now - response_time(接收到响应的时间);
+- corrected_initial_age = max(apparent_age, corrected_age_value);
+- corrected_age_value = age_value + response_delay;
+- response_delay = response_time - request_time(发起请求的时间);
+- apparent_age = max(0, response_time - date_value);  
+
+![](./img/age_header.png)
+
+## Cache-Control 头部  
+
+Cache-Control = 1#cache-directive  
+
+cache-directive = token [ "=" ( token / quoted-string ) ]  
+
+- 请求中的头部：max-age、max-stale、min-fresh、no-cache、nostore、no-transform、only-if-cached
+- 响应中的头部： max-age、s-maxage 、 must-revalidate 、proxyrevalidate 、no-cache、no-store、no-transform、public、private  
+
+Cache-Control 头部在请求中的值  
+
+### Cache-Control 头部在请求中的值  
+
+- max-age：告诉服务器，客户端不会接受 Age 超出 max-age 秒的缓存
+- max-stale：告诉服务器，即使缓存不再新鲜，但陈旧秒数没有超出 max-stale 时，客户端仍打算使用。若 max-stale 后没有值，则表示无论过期多久客户端都可使用
+- min-fresh：告诉服务器，Age 至少经过 min-fresh 秒后缓存才可使用
+- no-cache：告诉服务器，不能直接使用已有缓存作为响应返回，除非带着缓存条件到上游服务端得到 304 验证返回码才可使用现有缓存
+- no-store：告诉各代理服务器不要对该请求的响应缓存（实际有不少不遵守该规定的代理服务器）
+- no-transform：告诉代理服务器不要修改消息包体的内容
+- only-if-cached：告诉服务器仅能返回缓存的响应，否则若没有缓存则返回 504 错误码  
+
+### Cache-Control 头部在响应中的值  
+
+- must-revalidate：告诉客户端一旦缓存过期，必须向服务器验证后才可使用
+- proxy-revalidate：与 must-revalidate 类似，但它仅对代理服务器的共享缓存有效
+- no-cache：告诉客户端不能直接使用缓存的响应，使用前必须在源服务器验证得到 304 返回码。如果 no-cache 后指定头部，则若客户端的后续请求及响应
+  中不含有这些头则可直接使用缓存
+- max-age：告诉客户端缓存 Age 超出 max-age 秒后则缓存过期  
+- s-maxage：与 max-age 相似，但仅针对共享缓存，且优先级高于 max-age 和 Expires
+- public：表示无论私有缓存或者共享缓存，皆可将该响应缓存
+- private：表示该响应不能被代理服务器作为共享缓存使用。若 private 后指定头部，则在告诉代理服务器不能缓存指定的头部，但可缓存其他部分
+- no-store：告诉所有下游节点不能对响应进行缓存
+- no-transform：告诉代理服务器不能修改消息包体的内容  
+
+## 什么样的 HTTP 响应会缓存？  
+
+- 请求方法可以被缓存理解（不只于 GET 方法）
+- 响应码可以被缓存理解（404、206 也可以被缓存）
+- 响应与请求的头部没有指明 no-store
+- 响应中至少应含有以下头部中的 1 个或者多个：
+  - Expires、max-age、s-maxage、public
+  - 当响应中没有明确指示过期时间的头部时，如果响应码非常明确，也可以缓存
+- 如果缓存在代理服务器上
+  - 不含有 private
+  - 不含有 Authorization  
+
+## 使用缓存作为当前请求响应的条件  
+
+- URI 是匹配的，URI 作为主要的缓存关键字，当一个 URI 同时对应多份缓存时，选择日期最近的缓存；缓存中的响应允许当前请求的方法使用缓存
+- 缓存中的响应 Vary 头部指定的头部必须与请求中的头部相匹配  
+- 当前请求以及缓存中的响应都不包含 no-cache 头部  
+- 缓存中的响应必须是以下三者之一：  
+  - 新鲜的（时间上未过期）  
+  - 缓存中的响应头部明确告知可以使用过期的响应  
+  - 使用条件请求去服务器端验证请求是否过期，得到 304 响应  
+
+## Vary 缓存  
+
+![](./img/vary_cache.png)
+
+## Warning 头部：对响应码进行补充（缓存或包体转换  
+
+常见的 warn-code：
+
+- Warning: 110 - "Response is Stale“
+- Warning: 111 - "Revalidation Failed“
+- Warning: 112 - "Disconnected Operation“
+-  Warning: 113 - "Heuristic Expiration“
+-  Warning: 199 - "Miscellaneous Warning“
+-  Warning: 214 - "Transformation Applied“
+-  Warning: 299 - "Miscellaneous Persistent Warning"  
+
+## 验证请求与响应  
+
+验证请求
+
+- 若缓存响应中含有 Last-Modified 头部
+  - If-Unmodified-Since
+  - If-Modified-Since
+  - If-Range
+- 若缓存响应中含有 Etag 头部
+  - If-None-Match
+  - If-Match
+  - If-Range  
+
+# URI 重定向  
+
+## 重定向的流程
+当浏览器接收到重定向响应码时，需要读取响应头部 Location 头部的值，获取到新的 URI 再跳转访问该页面  
+
+![](./img/rediect.png)
+
+Location 头部，Location = URI-reference（对 201 响应码表示新创建的资源）  
+
+## 重定向响应返回码  
+
+概念
+
+- 原请求：接收到重定向响应码的请求这里称为原请求
+- 重定向请求：浏览器接收到重定向响应码后，会发起新的重定向请求  
+
+永久重定向，表示资源永久性变更到新的 URI
+
+- 301（HTTP/1.0）：重定向请求通常（由于历史原因一些浏览器会把 POST 改为 GET）会使用 GET 方法，而不管原请求究竟采用的是什么方法
+- 308（HTTP/1.1）  
+
+临时重定向，表示资源只是临时的变更 URI
+
+- 302 （HTTP/1.0）：重定向请求通常会使用 GET 方法，而不管原请求究竟采用的是什么方法
+- 303 （HTTP/1.1）：它并不表示资源变迁，而是用新 URI 的响应表述而为原请求服务，重定向请求会使用 GET 方法，例如表单提交后向用户返回新内容（亦可防止重复提交）
+- 307 （HTTP/1.1）：重定向请求必须使用原请求的方法和包体发起访问  
+
+特殊重定向
+
+- 300：响应式内容协商中，告知客户端有多种资源表述，要求客户端选择一种自认为合适的表述
+- 304：服务器端验证过期缓存有效后，要求客户端使用该缓存  
+
+## 重定向循环  
+
+服务器端在生成 Location 重定向 URI 时，在同一条路径上使用了之前的URI，导致无限循环出现  
+
+## Http Tunnel 隧道  
+
+用于通过 HTTP 连接传输非 HTTP协议格式的消息，常用于穿越防火墙  
+
+建立隧道后，由于传输的并非HTTP 消息，因此不再遵循请求/响应模式，已变为双向传输  
+
+![](./img/http_tunnel.png)
+
+## 请求行  
+
+request-line = method SP request-target SP HTTP-version CRLF
+request-target = origin-form / absolute-form / authority-form / asterisk-form
+- origin-form = absolute-path [ "?" query ]
+	- 向源服务器发起的请求，path 为空时必须传递 /
+- absolute-form = absolute-URI
+	- 仅用于向正向代理 proxy 发起请求时，详见正向代理与隧道
+- authority-form = authority
+  - authority = [ userinfo “@” ] host [ “:” port ]，指定源服务器
+  - 仅用于 CONNECT 方法，例如 CONNECT www.example.com:80 HTTP/1.1
+- asterisk-form = "*“
+  - 仅用于 OPTIONS 方法
+
+## tunnel 隧道的常见用途：传递 SSL 消息  
+
+![](./img/http_tunnel_ssl.png)
+
+Http Tunnel 隧道的认证：
+
+![](./img/http_tunnel_ssl2.png)
+
+# 什么是 DNS？  
+
+一个用于将人类可读的“域名”（例如 www.taohui.pub）与服务器的IP地址（例如 116.62.160.193）进行映射的数据库  
+
+递归查询
+
+- 根域名服务器
+- 权威服务器  
+
+![](./img/dns.png)
+
+![](./img/dns2.png)
+
+![](./img/dns3.png)
+
+DNS 报文：查询与响应  
+
+- query：查询域名  
+- response：返回 IP 地址  
+
+![](./img/dns4.png)
+
+## DNS 报文  
+
+![](./img/dns5.png)
+
+### Questions 格式  
+
+QNAME 编码规则：
+
+- 以.分隔为多段，每段以字节数打头
+  - 单字节，前 2 比特必须为 00，只能表示2^6-1=63 字节
+- 在 ASCII 编码每段字符
+- 以 0 结尾  
+
+QTYPE 常用类型  
+
+![](./img/qtype.png)
+
+QCLASS：IN 表示 internet  
+
+### Answer 格式  
+
+- NAME：前 2 位为 11，接引用 QNAME 偏移
+  - 在 DNS 头部的字符偏移数
+- TTL：Time To Live
+- RDLENGTH：指明 RDATA 的长度
+- RDATA：查询值，如 IP 地址，或者别名
+  - 别名遵循 QNAME 编码规则
