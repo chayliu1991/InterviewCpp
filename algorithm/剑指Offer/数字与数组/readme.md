@@ -282,18 +282,6 @@ public:
 ```
 
 
-# [64. 求1+2+…+n](https://leetcode-cn.com/problems/qiu-12n-lcof/)
-
-```
-class Solution {
-public:
-    int sumNums(int n) {
-        n && (n+=sumNums(n-1));
-        return n;
-    }
-};
-```
-
 # [66. 构建乘积数组](https://leetcode-cn.com/problems/gou-jian-cheng-ji-shu-zu-lcof/)
 
 ```
