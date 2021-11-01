@@ -1,36 +1,5 @@
 
 
-# [16. 数值的整数次方](https://leetcode-cn.com/problems/shu-zhi-de-zheng-shu-ci-fang-lcof/)
-
-```
-class Solution {
-public:
-    double myPow(double x, int n) {
-        if(n == 0)
-            return 1;
-        long exp = n;
-        if(exp < 0)
-            exp = -exp;
-        if(n < 0)
-            return 1.0 / quick_pow(x,exp);
-        else
-            return quick_pow(x,exp);
-    }
-    
-    double quick_pow(double x,long n)
-    {
-        if(n == 0)
-            return 1.0;
-        if(n == 1)
-            return x;
-        double t = quick_pow(x,n >> 1);
-        double res = t * t;
-        
-        return n & 0x01 ? res * x : res;
-    }
-};
-```
-
 # [17. 打印从1到最大的n位数](https://leetcode-cn.com/problems/da-yin-cong-1dao-zui-da-de-nwei-shu-lcof/)
 
 ```
@@ -199,51 +168,6 @@ private:
     }
 };
 ```
-
-# [56 - I. 数组中数字出现的次数](https://leetcode-cn.com/problems/shu-zu-zhong-shu-zi-chu-xian-de-ci-shu-lcof/)
-
-```
-class Solution {
-public:
-    vector<int> singleNumbers(vector<int>& nums) {
-        int sum = 0;
-        for(auto n : nums)
-            sum ^= n;        
-        int mask = 1;
-        while((mask & sum) == 0)
-            mask <<= 1;
-        int a = 0,b = 0;
-        for(auto n : nums)
-        {
-            if(n & mask)
-                a ^= n;
-            else 
-                b ^= n;
-        }
-        return {a,b};
-    }
-};
-```
-
-# [56 - II. 数组中数字出现的次数 II](https://leetcode-cn.com/problems/shu-zu-zhong-shu-zi-chu-xian-de-ci-shu-ii-lcof/)
-
-```
-class Solution {
-public:
-    int singleNumber(vector<int>& nums) {
-        std::unordered_map<int,int> hash;
-        for(const auto n : nums)
-        {
-            hash[n]++;
-            if(hash[n] == 3)
-                hash.erase(n);
-        }
-        return hash.begin()->first;
-    }
-};
-```
-
-
 
 # [57 - II. 和为s的连续正数序列](https://leetcode-cn.com/problems/he-wei-sde-lian-xu-zheng-shu-xu-lie-lcof/)
 
