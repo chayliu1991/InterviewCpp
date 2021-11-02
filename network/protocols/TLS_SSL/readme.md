@@ -342,6 +342,97 @@ ECC 曲线的特性：
 
 # DH 协议升级：基于椭圆曲线的 ECDH 协议  
 
+## ECDH 密钥交换协议  
+
+- DH 密钥交换协议使用椭圆曲线后的变种，称为 Elliptic Curve Diffie–Hellman key Exchange，缩写为 ECDH，优点是比 DH 计算速度快、同等安全条件下密钥更短  
+- ECC（Elliptic Curve Cryptography）：椭圆曲线密码学  
+- 魏尔斯特拉斯椭圆函数（Weierstrass‘s elliptic functions）：y^2=x^3+ax+b  
+
+![](./img/ecc_curve_demo.png)
+
+## ECDH 的步骤  
+
+- Alice 选定大整数 Ka 作为私钥
+- 基于选定曲线及曲线上的共享 P 点，Alice 计算出 Qa=Ka.P
+- Alice 将 Qa、选定曲线、共享 P 点传递点 Bob
+- Bob 选定大整数 Kb 作为私钥，将计算了 Qb=Kb.P，并将 Qb 传递给 Alice
+- Alice 生成密钥 Qb.Ka = (X, Y)，其中 X 为对称加密的密钥
+- Bob 生成密钥 Qa.Kb = (X, Y)，其中 X 为对称加密的密钥  
+
+Qb.Ka = Ka.(Kb.P) = Ka.Kb.P = Kb.(Ka.P) = Qa.Kb  
+
+## X25519 曲线  
+
+椭圆曲线变种：Montgomery curve 蒙哥马利曲线  
+
+- By2 = x^3 + Ax^2 + x  
+
+X25519：y^2 = x^3 + 486662x^2 + x  
+
+# TLS1.2 与 TLS1.3 中的 ECDH 协议  
+
+## TLS1.2 通讯过程  
+
+![](./img/tls1.2.png)
+
+## TLS1.3 中的密钥交换  
+
+![](./img/tls1.3.png)
+
+# 握手的优化  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
