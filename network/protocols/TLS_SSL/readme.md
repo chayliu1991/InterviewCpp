@@ -381,13 +381,19 @@ X25519：y^2 = x^3 + 486662x^2 + x
 
 # 握手的优化  
 
+## session 缓存
 
+以服务器生成的 session ID 为依据：
 
+![](./img/session_id.png)
 
+## session ticket  
 
+![](./img/session_ticket.png)
 
+## TLS1.3 的 0RTT 握手  
 
-
+![](./img/tls1.3_handshake.png)
 
 
 
