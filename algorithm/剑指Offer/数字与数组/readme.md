@@ -49,18 +49,6 @@ public:
 };
 ```
 
-# [39. 数组中出现次数超过一半的数字](https://leetcode-cn.com/problems/shu-zu-zhong-chu-xian-ci-shu-chao-guo-yi-ban-de-shu-zi-lcof/)
-
-```
-class Solution {
-public:
-    int majorityElement(vector<int>& nums) {
-        std::sort(nums.begin(),nums.end());
-        return nums[nums.size()/2];
-    }
-};
-```
-
 # [43. 1～n 整数中 1 出现的次数](https://leetcode-cn.com/problems/1nzheng-shu-zhong-1chu-xian-de-ci-shu-lcof/)
 
 ```
@@ -199,29 +187,6 @@ public:
 				sum -= left;
 				left ++;	
 			}			
-        }
-        return res;
-    }
-};
-```
-
-
-# [66. 构建乘积数组](https://leetcode-cn.com/problems/gou-jian-cheng-ji-shu-zu-lcof/)
-
-```
-class Solution {
-public:
-    vector<int> constructArr(vector<int>& a) {
-        int size = a.size();
-        std::vector<int> res(size,1);
-        for(int i = 1;i < size;i++)
-            res[i] = res[i-1] * a[i-1];
-
-        int tmp = 1;
-        for(int i = size-2;i >= 0;i--)
-        {
-            tmp *= a[i+1];
-            res[i] *= tmp;
         }
         return res;
     }
