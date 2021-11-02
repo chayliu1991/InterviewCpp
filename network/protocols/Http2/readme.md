@@ -461,6 +461,140 @@ SETTINGS_ENABLE_PUSH（0x2）
 - INADEQUATE_SECURITY (0xc): 安全等级不够
 - HTTP_1_1_REQUIRED (0xd): 对端只能接受HTTP/1.1协议
 
+# 不同请求的优先级  
+
+## Priority 优先级设置帧  
+
+![](./img/priority_frame.png)
+
+- 帧类型：type=0x2
+- 不使用 flag 标志位字段
+- Stream Dependency：依赖流
+- Weight权重：取值范围为 1 到 256。默认权重16
+- 仅针对 Stream 流，若 ID 为 0 试图影响连接，则接收端必须报错
+- 在 idle 和 closed 状态下，仍然可以发送 Priority 帧
+
+## 数据流优先级  
+
+- 每个数据流有优先级（1-256）
+- 数据流间可以有依赖关系  
+
+![](./img/data_priority.png)
+
+## exclusive 标志位  
+
+![](./img/exclusive_flag.png)
+
+![](./img/exclusive_flag2.png)
+
+# 不同于 TCP 的流量控制  
+
+## 为什么需要 HTTP/2 应用层流控？  
+
+- HTTP/1.1 中由 TCP 层进行流量控制，前提：HTTP/1 的 TCP 连接上没有多路复用    
+
+![](./img/tcp_stream_control.png)
+
+- HTTP/2 中，多路复用意味着多个 Stream 必须共享 TCP 层的流量控制  
+
+多 Stream 争夺 TCP 的流控制，互相干扰可能造成 Stream 阻塞，代理服务器内存有限，上下游网速不一致时，通过流控管理内存：
+
+![](./img/http2_stream_control.png)  
+
+## 由应用层决定发送速度  
+
+HTTP/2 中的流控制既针对单个 Stream，也针对整个 TCP 连接：
+
+- 客户端与服务器都具备流量控制能力
+- 单向流控制：发送和接收独立设定流量控制
+- 以信用为基础：接收端设定上限，发送端应当遵循接收端发出的指令
+- 流量控制窗口（流或者连接）的初始值是 65535 字节
+- 只有 DATA 帧服从流量控制
+- 流量控制不能被禁用
+
+## WINDOW_UPDATE 帧 
+
+- type=0x8，不使用任何 flag  
+- 窗口范围 1 to 2^31-1 (2,147,483,647)字节，0 是错误的，接收端应返回 PROTOCOL_ERROR  
+- 当 Stream ID 为 0 时表示对连接流控，否则为对 Stream 流控  
+- 流控仅针对直接建立 TCP 连接的两端  
+  - 代理服务器并不需要透传 WINDOW_UPDATE 帧  
+  - 接收端的缩小流控窗口会最终传递到源发送端  
+
+![](./img/window_size.png)
+
+## 流控制窗口  
+
+- 窗口大小由接收端告知  
+- 窗口随着 DATA 帧的发送而减少  
+
+![](./img/flow_control_window.png)
+
+## SETTINGS_MAX_CONCURRENT_STREAMS 并发流  
+
+- 并发仅统计 open 或者 half-close 状态的流（不包含用于推送的 reserved 状态）  
+- 超出限制后的错误码  
+  - PROTOCOL_ERROR  
+  - REFUSED_STREAM  
+
+# HTTP/2 与 gRPC 框架  
+
+## gRPC：支持多语言编程、基于 HTTP/2 通讯的中间件  
+
+![](./img/grpc.png)
+
+## Protocol Buffers 编码：消息结构  
+
+![](./img/grpc_message_structure.png)
+
+## Protocol Buffers 编码：数据类型 Wire Type  
+
+![](./img/wire_type.png)
+
+## Protocol Buffers 字符串编码举例  
+
+![](./img/protocol_buf.png)
+
+# HTTP/2 的问题及 HTTP/3 的意义  
+
+## TCP 以及 TCP+TLS 建链握手过多的问题  
+
+![](./img/tcp_tls.png)
+
+## 多路复用与 TCP 的队头阻塞问题  
+
+资源的有序到达：
+
+![](./img/resource_arrival.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
