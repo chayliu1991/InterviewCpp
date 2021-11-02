@@ -253,13 +253,17 @@ RC = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36}
 
 ![](./img/ca_chain.png)
 
+## PKI 公钥基础设施  
 
+![](./img/pki.png)
 
+## 证书类型  
 
+![](./img/ca_type.png)
 
+## 验证证书链  
 
-
-
+![](./img/ca_verification.png)
 
 
 
