@@ -567,6 +567,20 @@ HTTP/2 中的流控制既针对单个 Stream，也针对整个 TCP 连接：
 
 ![](./img/resource_arrival.png)
 
+TCP的问题：由操作系统内核实现，更新缓慢  
+
+# HTTP/3：QUIC 协议概述  
+
+![](./img/quic.png)
+
+## HTTP3 的连接迁移  
+
+
+
+
+
+
+
 
 
 
