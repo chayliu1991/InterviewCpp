@@ -265,15 +265,38 @@ RC = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36}
 
 ![](./img/ca_verification.png)
 
+# 非对称密码应用：DH 密钥交换协议  
+
+## RSA 密钥交换
+
+RSA 密钥交换，由客户端生成对称加密的密钥  
+
+![](./img/rsa_key_exchange.png)
 
 
+## DH 密钥交换  
 
+1976 年由 Bailey Whitfield Diffie 和 Martin Edward Hellman 首次发表，故称为Diffie–Hellman key exchange，简称 DH。它可以让双方在完全没有对方任何预先信息的条件下通过不安全信道创建起一个密钥  
 
+![](./img/dh_key_exchange.png)
 
+### DH 密钥交换协议举例  
 
+- g、p、A、B 公开
+- a,b 保密
+- 生成共同密钥 K  
 
+![](./img/dh_key_exchange_demo.png)
 
-
+- 协定使用 p=23 以及 base g=5
+- 爱丽丝选择一个秘密整数 a=6, 计算A = ga mod p 并发送给鲍伯
+  - A = 5^6 mod 23 = 8
+- 鲍伯选择一个秘密整数 b=15, 计算B = g^b mod p 并发送给爱丽丝
+  - B = 5^15 mod 23 = 19
+- 爱丽丝计算 s = B^a mod p
+  - 19^6 mod 23 = 2
+- 鲍伯计算 s = A^b mod p
+  - 8^15 mod 23 = 2
 
 
 
