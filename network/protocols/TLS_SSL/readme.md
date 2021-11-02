@@ -151,13 +151,26 @@ RC = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36}
 
 ![](./img/SubBytes.png)
 
+### S 盒  
 
+![](./img/s-box.png)
 
+### ShiftRows 步骤  
 
+将矩阵中的每个横列进行循环式移位：
 
+- 第一行不变
+- 第二行循环左移 1 个字节
+- 第三行循环左移 2 个字节
+- 第四行循环左移 3 个字节  
 
+![](./img/ShiftRows.png)
 
+### MixColumns 步骤  
 
+![](./img/MixColumns.png)
+
+# 非对称密码与 RSA 算法  
 
 
 
