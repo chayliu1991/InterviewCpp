@@ -68,6 +68,24 @@ public:
 };
 ```
 
+# [ 62. 圆圈中最后剩下的数字](https://leetcode-cn.com/problems/yuan-quan-zhong-zui-hou-sheng-xia-de-shu-zi-lcof/)
+
+```
+class Solution {
+public:
+    int lastRemaining(int n, int m) {
+        if(n == 1)
+            return 0;
+        int res;
+        for(int i = 2;i <= n;i++)
+        {
+            res = (res + m) % i;
+        }
+        return res;
+    }
+};
+```
+
 # [66. 构建乘积数组](https://leetcode-cn.com/problems/gou-jian-cheng-ji-shu-zu-lcof/)
 
 ```
