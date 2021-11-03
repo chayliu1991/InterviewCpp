@@ -194,24 +194,6 @@ public:
 };
 ```
 
-# [ 62. 圆圈中最后剩下的数字](https://leetcode-cn.com/problems/yuan-quan-zhong-zui-hou-sheng-xia-de-shu-zi-lcof/)
-
-```
-class Solution {
-public:
-    int lastRemaining(int n, int m) {
-        if(n == 1)
-            return 0;
-        int res;
-        for(int i = 2;i <= n;i++)
-        {
-            res = (res + m) % i;
-        }
-        return res;
-    }
-};
-```
-
 # [63. 股票的最大利润](https://leetcode-cn.com/problems/gu-piao-de-zui-da-li-run-lcof/)
 
 - 遍历

@@ -1,3 +1,25 @@
+# [14- I. 剪绳子](https://leetcode-cn.com/problems/jian-sheng-zi-lcof/)
+
+```
+class Solution {
+public:
+    int cuttingRope(int n) {
+        if(n == 2)
+            return 1;
+        if(n == 3)
+            return 2;
+        
+        int res = 1;
+        while(n > 4)
+        {
+            res *= 3;
+            n -= 3;
+        }
+        return n * res;
+    }
+};
+```
+
 # [39. 数组中出现次数超过一半的数字](https://leetcode-cn.com/problems/shu-zu-zhong-chu-xian-ci-shu-chao-guo-yi-ban-de-shu-zi-lcof/)
 
 ```
@@ -6,6 +28,42 @@ public:
     int majorityElement(vector<int>& nums) {
         std::sort(nums.begin(),nums.end());
         return nums[nums.size()/2];
+    }
+};
+```
+
+# [57 - II. 和为s的连续正数序列](https://leetcode-cn.com/problems/he-wei-sde-lian-xu-zheng-shu-xu-lie-lcof/)
+
+```
+class Solution {
+public:
+    vector<vector<int>> findContinuousSequence(int target) {
+        int left = 1,right = 1;
+        vector<vector<int>>  res;
+		int sum = 0;
+        while(left <= target/2)
+        {
+            if(sum < target)
+			{
+				sum += right;
+				right++;		
+			}
+			else if(sum > target)
+			{
+				sum -= left;
+				left++;	
+			}
+			else
+			{
+				vector<int> v;
+				for(int i = left;i < right;i++)
+					v.push_back(i);
+				res.push_back(v);	
+				sum -= left;
+				left ++;	
+			}			
+        }
+        return res;
     }
 };
 ```
