@@ -17,43 +17,53 @@ public:
 };
 ```
 
-# [38. 字符串的排列](https://leetcode-cn.com/problems/zi-fu-chuan-de-pai-lie-lcof/)
+# [20. 表示数值的字符串](https://leetcode-cn.com/problems/biao-shi-shu-zhi-de-zi-fu-chuan-lcof/)
 
 ```
 class Solution {
 public:
-    inline bool occur(string &s, int left, int right) 
-    {
-        for(int i=left; i<right; ++i) 
-        {
-            if(s[i]==s[right])
-                return true;
-        }
-        return false;
-    }
-
-    void dfs(string &s, int id, vector<string> &result) {
-        if(id==s.size()) 
-            result.push_back(s);
-        else 
-        {
-            for(int i=id; i<s.size(); ++i) 
-            {
-                if(!occur(s, id, i)) 
-                {
-                    swap(s[id], s[i]);
-                    dfs(s, id+1, result);
-                    swap(s[id], s[i]);
-                }
-            }
-        }
-    }
-
-    vector<string> permutation(string s) 
-    {
-        vector<string> res;
-        dfs(s, 0, res);
-        return res;
+    bool isNumber(string s) {
+		while(!s.empty() && s[0] == ' ')
+			s.erase(0,1);
+		while(!s.empty() && s[s.length()-1] == ' ')
+			s.erase(s.length()-1,1);
+		
+		if(s.empty())
+			return false;
+		
+		bool dot = false,exp = false,num = false;
+		int last = s.length()-1;
+		for(int i =0;i<s.length();i++)
+		{
+			switch(s[i])
+			{
+				case ' ':
+					return false;
+				case '+':
+				case '-':
+					if((i > 0 && s[i-1] != 'E' && s[i-1] != 'e') || (i == last))
+						return false;
+					break;
+				case 'E':
+				case 'e':
+					if(exp || i == last || !num)
+						return false;
+					exp = true;
+                    break;
+				case '.':
+					if(dot || exp || (i == last && !num))
+						return false;
+					dot = true;
+					break;
+				default:
+					if(s[i] >= '0' && s[i] <= '9')
+						num = true;
+					else
+						return false;
+					break;
+			}			
+		}		
+		return true;
     }
 };
 ```
@@ -148,6 +158,10 @@ public:
 		int i = 0;
 		while(str[i] == ' ')
 			i++;
+        
+        if(i == str.length())
+            return 0;
+
 		int sign = 1;
 		if(str[i] == '-')
 			sign = -1;

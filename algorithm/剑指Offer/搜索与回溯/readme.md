@@ -434,6 +434,93 @@ public:
 
 ```
 
+# [37. 序列化二叉树](https://leetcode-cn.com/problems/xu-lie-hua-er-cha-shu-lcof/)
+
+```
+class Codec {
+public:
+    // Encodes a tree to a single string.
+    string serialize(TreeNode* root) {
+        std::ostringstream out;
+		std::queue<TreeNode*> q;
+		q.push(root);
+		while(!q.empty())
+		{
+			auto node = q.front();
+            q.pop();
+			if(node != nullptr)
+			{				
+				out << node->val<<" ";
+				q.push(node->left);
+				q.push(node->right);
+			}
+			else
+				out <<"null ";		
+		}
+		return out.str();
+    }
+
+    // Decodes your encoded data to tree.
+    TreeNode* deserialize(string data) {
+        std::istringstream inPut(data);
+		std::string val;
+		std::vector<TreeNode*> vec;
+		while(inPut >> val)
+		{
+			if(val == "null")
+				vec.push_back(nullptr);
+			else 
+				vec.push_back(new TreeNode(stoi(val)));
+		}
+
+		int j = 1;
+		for(int i = 0;j < vec.size();i++)
+		{
+			if(vec[i] == nullptr)
+				continue;
+            if (j < vec.size()) 
+			    vec[i]->left = vec[j++];
+			if(j < vec.size())
+				vec[i]->right = vec[j++];
+		}
+		return vec.front();
+    }
+};
+```
+
+# [38. 字符串的排列](https://leetcode-cn.com/problems/zi-fu-chuan-de-pai-lie-lcof/)
+
+```
+class Solution {
+public:
+    vector<string> permutation(string s) {
+        std::vector<std::string> res;
+        dfs(res,s,0);
+        return res;
+    }
+
+    void dfs(std::vector<std::string>& res,std::string& s,int pos)
+    {
+        if(pos == s.size() -1)
+        {
+            res.push_back(s);
+            return;
+        }
+
+        std::set<int> st;
+        for(int i = pos;i < s.size();i++)
+        {
+            if(st.find(s[i]) != st.end())
+                continue;
+            st.insert(s[i]);
+            std::swap(s[i],s[pos]);
+            dfs(res,s,pos+1);
+            std::swap(s[i],s[pos]);
+        }
+    }
+};
+```
+
 # [54. 二叉搜索树的第k大节点](https://leetcode-cn.com/problems/er-cha-sou-suo-shu-de-di-kda-jie-dian-lcof/)
 
 ```

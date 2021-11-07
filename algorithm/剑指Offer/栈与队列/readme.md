@@ -136,31 +136,6 @@ public:
 
 ```
 
-# [ 31. 栈的压入、弹出序列](https://leetcode-cn.com/problems/zhan-de-ya-ru-dan-chu-xu-lie-lcof/)
-
-```
-class Solution {
-public:
-    bool validateStackSequences(vector<int>& pushed, vector<int>& popped) {
-		if(pushed.size() != popped.size())
-			return false;
-		std::stack<int> s;
-		int n = popped.size();
-        int j = 0;
-		for(int i = 0;i < n;i++)
-		{
-			s.push(pushed[i]);
-			while(!s.empty() && j < n && s.top() == popped[j])
-			{
-				s.pop();
-				j++;
-			}			
-		}
-		return s.empty();        
-    }
-};
-```
-
 # [59 - I. 滑动窗口的最大值](https://leetcode-cn.com/problems/hua-dong-chuang-kou-de-zui-da-zhi-lcof/)
 
 ```
@@ -169,51 +144,23 @@ public:
     vector<int> maxSlidingWindow(vector<int>& nums, int k) {
         if(nums.empty())
             return {};
-
-        std::priority_queue<std::pair<int,int>> pq;
-        for(int i = 0; i < k;i++)
-            pq.emplace(nums[i],i);
         
-        vector<int> res;
-        res.push_back(pq.top().first);
+        std::deque<int> dq;
+        for(int i = 0;i < k;i++)
+        {
+            while(!dq.empty() && nums[i] >= nums[dq.back()])
+                dq.pop_back();
+            dq.push_back(i);
+        }
 
+        std::vector<int> res{nums[dq.front()]};
         for(int i = k;i < nums.size();i++)
         {
-            pq.emplace(nums[i],i);
-            while(i - pq.top().second >= k)
-                pq.pop();
-            res.push_back(pq.top().first);
-        }
-
-        return res;
-    }
-};
-```
-
-```
-class Solution {
-public:
-    vector<int> maxSlidingWindow(vector<int>& nums, int k) {
-        if(nums.empty())
-            return {};
-
-        std::deque<int> dq;
-        for (int i = 0; i < k; ++i) 
-        {
-            while (!dq.empty() && nums[i] >= nums[dq.back()]) 
+            while(!dq.empty() && nums[i] >= nums[dq.back()])
                 dq.pop_back();
-            
             dq.push_back(i);
-        }
 
-        std::vector<int> res = {nums[dq.front()]};
-        for (int i = k; i < nums.size(); ++i) 
-        {
-            while (!dq.empty() && nums[i] >= nums[dq.back()])
-                dq.pop_back();
-            
-            dq.push_back(i);
-            while (i - dq.front() >= k) 
+            while(i - dq.front() >= k)
                 dq.pop_front();
 
             res.push_back(nums[dq.front()]);
