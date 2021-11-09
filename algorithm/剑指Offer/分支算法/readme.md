@@ -54,6 +54,37 @@ public:
 };
 ```
 
+# [17. 打印从1到最大的n位数](https://leetcode-cn.com/problems/da-yin-cong-1dao-zui-da-de-nwei-shu-lcof/)
+
+```
+class Solution {
+public:
+    vector<int> printNumbers(int n) {
+        std::vector<int> res;
+        std::string str(n,'0');
+        back_trace(res,str,0,n);
+        return res;
+    }
+
+    void back_trace(std::vector<int>& res,std::string& str,int idx,int n)
+    {
+        if(idx == n)
+        {
+            int val = std::stoi(str);
+            if(val)
+                res.push_back(val);
+            return;
+        }
+
+        for(char i = '0';i <= '9';i++)
+        {
+            str[idx] = i;
+            back_trace(res,str,idx + 1,n);
+        }
+    }
+};
+```
+
 # [33. 二叉搜索树的后序遍历序列](https://leetcode-cn.com/problems/er-cha-sou-suo-shu-de-hou-xu-bian-li-xu-lie-lcof/)
 
 ```
@@ -81,3 +112,39 @@ public:
     }
 };
 ```
+
+# [51. 数组中的逆序对](https://leetcode-cn.com/problems/shu-zu-zhong-de-ni-xu-dui-lcof/)
+
+```
+class Solution {
+public:
+    int reversePairs(vector<int>& nums) {
+        std::vector<int> tmp(nums.size());
+        return merge_sort(0, nums.size() - 1, nums, tmp);
+    }
+private:
+    int merge_sort(int left, int right, std::vector<int>& nums, std::vector<int>& tmp) 
+	{
+        if (left >= right) 
+			return 0;
+        int m = (left + right) / 2;
+        int res = merge_sort(left, m, nums, tmp) + merge_sort(m + 1, right, nums, tmp);
+        int i = left, j = m + 1;
+        for (int k = left; k <= right; k++)
+            tmp[k] = nums[k];
+        for (int k = left; k <= right; k++) 
+        {
+            if (i == m + 1)
+                nums[k] = tmp[j++];
+            else if (j == right + 1 || tmp[i] <= tmp[j])
+                nums[k] = tmp[i++];
+            else {
+                nums[k] = tmp[j++];
+                res += m - i + 1;
+            }
+        }
+        return res;
+    }
+};
+```
+

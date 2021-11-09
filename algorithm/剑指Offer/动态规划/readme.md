@@ -48,6 +48,48 @@ public:
 };
 ```
 
+# [19. 正则表达式匹配](https://leetcode-cn.com/problems/zheng-ze-biao-da-shi-pi-pei-lcof/)
+
+```
+class Solution {
+public:
+    bool isMatch(string s, string p) {
+        int m = s.size();
+        int n = p.size();
+
+        auto matches = [&](int i,int j){
+            if(i == 0)
+                return false;
+            if(p[j-1] == '.')
+                return true;
+            return s[i-1] == p[j -1];
+        };
+
+        std::vector<std::vector<int>> dp(m+1,std::vector<int>(n+1));
+        dp[0][0] = true;
+
+        for(int i = 0;i <= m;++i)
+        {
+            for(int j = 1;j <= n;++j)
+            {
+                if(p[j-1] == '*')
+                {
+                    dp[i][j] |= dp[i][j-2];
+                    if(matches(i,j-1))
+                        dp[i][j] |= dp[i-1][j];
+                }
+                else
+                {
+                    if(matches(i,j))
+                        dp[i][j] |= dp[i-1][j-1];
+                }
+            }
+        }
+        return dp[m][n];
+    }
+};
+```
+
 # [42. 连续子数组的最大和](https://leetcode-cn.com/problems/lian-xu-zi-shu-zu-de-zui-da-he-lcof/)
 
 ```
@@ -190,6 +232,54 @@ public:
             res = max(res,i-left);
         }
         return res;
+    }
+};
+```
+
+# [49. 丑数](https://leetcode-cn.com/problems/chou-shu-lcof/)
+
+```
+class Solution {
+public:
+    int nthUglyNumber(int n) {
+        std::vector<int> dp(n,1);
+        int i = 0,j = 0,k = 0;
+        for(int m = 1;m < n;++m)
+        {
+            int n2 = dp[i] * 2,n3 = dp[j] * 3,n5 = dp[k] * 5;
+            dp[m] = std::min(n2,std::min(n3,n5));
+            if(dp[m] == n2)
+                i++;
+            if(dp[m] == n3)
+                j++;
+            if(dp[m] == n5)
+                k++;
+        }
+        return dp.back();
+    }
+};
+```
+
+# [60. n个骰子的点数](https://leetcode-cn.com/problems/nge-tou-zi-de-dian-shu-lcof/)
+
+```
+class Solution {
+public:
+    vector<double> dicesProbability(int n) {
+        std::vector<double> dp(6,1.0/6.0);
+        for(int i = 2;i <= n;i++)
+        {
+            std::vector<double> tmp(5 * i + 1,0);
+            for(int j = 0;j < dp.size();j++)
+            {
+                for(int k = 0;k < 6;k++)
+                {
+                    tmp[j + k] += dp[j] / 6.0;
+                }
+            }
+            dp = tmp;
+        }
+        return dp;
     }
 };
 ```

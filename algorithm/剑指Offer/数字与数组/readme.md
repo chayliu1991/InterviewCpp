@@ -95,33 +95,6 @@ public:
 ```
 
 
-
-
-
-# [49. 丑数](https://leetcode-cn.com/problems/chou-shu-lcof/)
-
-```
-class Solution {
-public:
-    int nthUglyNumber(int n) {
-        std::vector<int> dp(n,1);
-        int i = 0,j = 0,k = 0;
-        for(int m = 1;m < n ;m++)
-        {
-            int n2 = dp[i] * 2,n3 = dp[j] * 3,n5 = dp[k] * 5;
-            dp[m] = min(n2,min(n3,n5));
-            if(dp[m] == n2)
-                i++;
-            if(dp[m] == n3)
-                j++;
-            if(dp[m] == n5)
-                k++;
-        }
-        return dp.back();
-    }
-};
-```
-
 # [51. 数组中的逆序对](https://leetcode-cn.com/problems/shu-zu-zhong-de-ni-xu-dui-lcof/)
 
 ```
