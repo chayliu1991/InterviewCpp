@@ -20,6 +20,28 @@ public:
 };
 ```
 
+# [14- II. 剪绳子 II](https://leetcode-cn.com/problems/jian-sheng-zi-ii-lcof/)
+
+```
+class Solution {
+public:
+    int cuttingRope(int n) {
+        if(n <= 3)
+            return n - 1;
+        if(n == 4)
+            return 4;
+        long res = 1;
+        while(n > 4)
+        {
+            res *= 3;
+            res %= 1000000007;
+            n -= 3;
+        }
+        return (res * n) % 1000000007;
+    }
+};
+```
+
 # [39. 数组中出现次数超过一半的数字](https://leetcode-cn.com/problems/shu-zu-zhong-chu-xian-ci-shu-chao-guo-yi-ban-de-shu-zi-lcof/)
 
 ```
@@ -28,6 +50,53 @@ public:
     int majorityElement(vector<int>& nums) {
         std::sort(nums.begin(),nums.end());
         return nums[nums.size()/2];
+    }
+};
+```
+
+# [43. 1～n 整数中 1 出现的次数](https://leetcode-cn.com/problems/1nzheng-shu-zhong-1chu-xian-de-ci-shu-lcof/)
+
+```
+class Solution {
+public:
+    int countDigitOne(int n) {
+        int res = 0;
+        long i = 1;
+        while(n / i)
+        {
+            long high = n / (10 * i);
+            long curr = (n / i) % 10;
+            long low = n - (n / i) * i;
+
+            if(curr == 0)
+                res += high * i;
+            else if(curr == 1)
+                res += high * i + low + 1;
+            else
+                res += high * i + i;
+            
+            i *= 10;
+        }
+        return res;
+    }
+};
+```
+
+# [44. 数字序列中某一位的数字](https://leetcode-cn.com/problems/shu-zi-xu-lie-zhong-mou-yi-wei-de-shu-zi-lcof/)
+
+```
+class Solution {
+public:
+    int findNthDigit(int n) {
+        long k = n;
+        for(int i = 1;;i++)
+        {
+            if(i * pow(10,i) > k)
+            {
+                return std::to_string(k/i)[k%i] - '0';
+            }
+            k += pow(10,i);
+        }
     }
 };
 ```
