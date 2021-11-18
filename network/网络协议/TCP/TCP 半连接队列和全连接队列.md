@@ -104,3 +104,74 @@ TCP 全连接队列的最⼤值取决于 somaxconn 和 backlog 之间的最⼩�
 ![](./img/syn_recv_count2.png)
 
 同时，还可以通过 netstat -s 观察半连接队列溢出的情况：  
+
+![](./img/syns_to_listen.png)
+
+上⾯输出的数值是累计值，表示共有多少个 TCP 连接因为半连接队列溢出⽽被丢弃。 隔⼏秒执⾏⼏次，如果有上升的趋势，说明当前存在半连接队列溢出的现象。  
+
+### TCP 半连接队列的最⼤值  
+
+TCP 第⼀次握⼿（收到 SYN 包）时会被丢弃的三种条件：  
+
+- 如果半连接队列满了，并且没有开启 tcp_syncookies，则会丢弃
+- 若全连接队列满了，且没有重传 SYN+ACK 包的连接请求多于 1 个，则会丢弃
+- 如果没有开启 tcp_syncookies，并且 max_syn_backlog 减去 当前半连接队列⻓度⼩于 (max_syn_backlog >> 2)，则会丢弃
+
+半连接队列的⼤⼩并不单单只跟 tcp_max_syn_backlog 有关系：
+
+- 当 max_syn_backlog > min(somaxconn, backlog) 时， 半连接队列最⼤值 max_qlen_log = min(somaxconn,backlog) * 2;
+- 当 max_syn_backlog < min(somaxconn, backlog) 时， 半连接队列最⼤值 max_qlen_log =max_syn_backlog * 2;  
+
+另外需要注意的是：每个 Linux 内核版本理论半连接最⼤值计算⽅式会不同。  
+
+### 处于 SYN_REVC 状态的最⼤个数
+
+max_qlen_log 是理论半连接队列最⼤值，并不⼀定代表服务端处于 SYN_REVC 状态的最⼤个数：如果当前半连接队列的⻓度 没有超过理论半连接队列最⼤值 max_qlen_log，那么如果条件 3 成⽴，则依然会丢弃 SYN 包，也就会使得服务端处于 SYN_REVC 状态的最⼤个数不会是理论值 max_qlen_log。  
+
+服务端处于 SYN_RECV 状态的最⼤个数分为如下两种情况：  
+
+- 如果当前半连接队列没超过理论半连接队列最⼤值，但是超过 max_syn_backlog -(max_syn_backlog >> 2)，那么处于 SYN_RECV 状态的最⼤个数就是 max_syn_backlog -(max_syn_backlog >> 2)
+- 如果当前半连接队列超过理论半连接队列最⼤值，那么处于 SYN_RECV 状态的最⼤个数就是理论半连接队列最⼤值
+
+### 如果 SYN 半连接队列已满，只能丢弃连接吗  
+
+开启 syncookies 功能就可以在不使⽤ SYN 半连接队列的情况下成功建⽴连接，开启了 syncookies 功能就不会丢弃连接。  
+
+syncookies 是这么做的：服务器根据当前状态计算出⼀个值，放在⼰⽅发出的 SYN+ACK 报⽂中发出，当客户端返回 ACK 报⽂时，取出该值验证，如果合法，就认为连接建⽴成功：
+
+![](./img/syncookies.png)
+
+syncookies 参数主要有以下三个值：
+
+- 0 值，表示关闭该功能
+- 1 值，表示仅当 SYN 半连接队列放不下时，再启⽤它
+- 2 值，表示⽆条件开启功能
+
+## 防御 SYN 攻击  
+
+防御 SYN 攻击的⽅法：  
+
+- 增⼤半连接队列
+- 开启 tcp_syncookies 功能
+- 减少 SYN+ACK 重传次数  
+
+### 增⼤半连接队列  
+
+要想增⼤半连接队列，我们得知不能只单纯增⼤ tcp_max_syn_backlog 的值，还需⼀同增⼤ somaxconn 和 backlog，也就是增⼤全连接队列。否则，只单纯增⼤ tcp_max_syn_backlog 是⽆效的。  
+
+增⼤ tcp_max_syn_backlog 和 somaxconn 的⽅法是修改 Linux 内核参数：  
+
+![](./img/somaxconn.png)
+
+### 开启 tcp_syncookies 功能  
+
+开启 tcp_syncookies 功能的⽅式也很简单，修改 Linux 内核参数：  
+
+![](./img/tcp_syncookies.png)
+
+### 减少 SYN+ACK 重传次数  
+
+当服务端受到 SYN 攻击时，就会有⼤量处于 SYN_REVC 状态的 TCP 连接，处于这个状态的 TCP 会重传SYN+ACK ，当重传超过次数达到上限后，就会断开连接。那么针对 SYN 攻击的场景，我们可以减少 SYN+ACK 的重传次数，以加快处于 SYN_REVC 状态的 TCP 连接断开。  
+
+![](./img/syn_ack.png)
+
