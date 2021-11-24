@@ -271,3 +271,37 @@ SELECT <列名称>  FROM <表名称> WHERE <表名称> REGEXP <'\\特殊字符'>
 
 匹配多个实例：
 
+![](./img/repeat_character.png)
+
+定位符：
+
+![](./img/locator.png)
+
+**"^"有两种用法。在集合中用它来否定该集合，否则，用来指串的开始处。**
+
+**LIKE 和 REGEXP 的不同在于， LIKE匹配整个串而REGEXP匹配子串。**  
+
+# 创建计算字段  
+
+字段（field） 基本上与列（ column） 的意思相同，经常互换使用，不过数据库列一般称为列，而术语字段通常用在计算字段的连接上。  
+
+拼接（concatenate） 将值联结到一起构成单个值。  
+
+拼接字段：
+
+```
+SELECT CONCAT(<字段1>,<字段2>,<字段3>,...) FROM <表名称>;
+```
+
+使用别名：
+
+```
+SELECT CONCAT(<字段1>,<字段2>,<字段3>,...) AS <别名> FROM <表名称>;
+```
+
+执行算术计算：
+
+![](./img/arithmetic_operator.png)
+
+# 使用数据处理函数  
+
