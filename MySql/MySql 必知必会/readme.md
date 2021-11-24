@@ -323,3 +323,60 @@ SELECT CONCAT(<字段1>,<字段2>,<字段3>,...) AS <别名> FROM <表名称>;
 数值处理函数：
 
 ![](./img/numeric_function.png)
+
+# 汇总函数
+
+聚集函数（ aggregate function） 运行在行组上，计算和返回单个值的函数。
+
+![](./img/aggregate_function.png)  
+
+AVG()函数：
+
+AVG()通过对表中行数计数并计算特定列值之和，求得该列的平均值。
+
+```
+SELECT AVG(<列名称>) AS <别名> FROM <表名称>;
+```
+
+**AVG()函数忽略列值为NULL的行。  **
+
+COUNT()函数：
+
+COUNT()函数进行计数。 可利用COUNT()确定表中行的数目或符合特定条件的行的数目：
+
+-  使用COUNT(*)对表中行的数目进行计数， 不管表列中包含的是空值（ NULL）还是非空值
+- 使用COUNT(column)对特定列中具有值的行进行计数，忽略NULL值    
+
+```
+SELECT COUNT(*) AS <别名> FROM <表名称>;
+```
+
+MAX()函数：
+
+MAX()返回指定列中的最大值。 MAX()要求指定列名。
+
+```
+SELECT MAX(<列名称>) AS <别名> FROM <表名称>;
+```
+
+ **MAX()函数忽略列值为NULL的行。 **
+
+MIN()函数：
+
+MIN()的功能正好与MAX()功能相反，它返回指定列的最小值。与MAX()一样， MIN()要求指定列名。
+
+```
+SELECT MIN(<列名称>) AS <别名> FROM <表名称>;
+```
+
+ **MIN()函数忽略列值为NULL的行。 **
+
+SUM()函数：
+
+SUM()用来返回指定列值的和（总计）。  
+
+```
+SELECT SUM(<列名称>) AS <别名> FROM <表名称>;
+```
+
+ **MIN()函数忽略列值为NULL的行。 **
