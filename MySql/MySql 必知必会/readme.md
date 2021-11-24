@@ -221,3 +221,45 @@ SELECT <列名称> FROM <表名称> WHERE LIKE <"prefix_suffix">;
 
 **下划线总是匹配一个字符，不能多也不能少  。  **
 
+MySQL中的匹配不区分大小写。为区分大小写，可使用BINARY关键字：
+
+```
+SELECT <列名称>  FROM <表名称> WHERE <表名称> LIKE BINARY <表达式>;
+```
+
+
+
+# 使用MySQL正则表达式  
+
+基本字符匹配：
+
+```
+SELECT <列名称>  FROM <表名称> WHERE <表名称> REGEXP <'正则表达式'>;
+```
+
+进行OR匹配：
+
+```
+SELECT <列名称>  FROM <表名称> WHERE <表名称> REGEXP <'表达式1 | 表达式2 | 表达式3...''>;
+```
+
+匹配几个字符之一：
+
+```
+SELECT <列名称>  FROM <表名称> WHERE <表名称> REGEXP <'[字符集]'>;
+```
+
+匹配范围：
+
+```
+SELECT <列名称>  FROM <表名称> WHERE <表名称> REGEXP <'[a-z0-9]'>;
+```
+
+匹配特殊字符：
+
+```
+SELECT <列名称>  FROM <表名称> WHERE <表名称> REGEXP <'\\特殊字符'>;
+```
+
+空白元字符：
+
