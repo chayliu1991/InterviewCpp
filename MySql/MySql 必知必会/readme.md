@@ -263,3 +263,11 @@ SELECT <列名称>  FROM <表名称> WHERE <表名称> REGEXP <'\\特殊字符'>
 
 空白元字符：
 
+![](./img/white_space_character.png)
+
+匹配字符类：
+
+![](./img/character_class.png)
+
+匹配多个实例：
+
