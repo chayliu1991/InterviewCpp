@@ -572,25 +572,161 @@ UNION从查询结果集中自动去除了重复的行。这是UNION的默认行�
 - 明确控制——使用通配符和正则表达式匹配，很难（而且并不总是能）明确地控制匹配什么和不匹配什么
 - 智能化的结果——虽然基于通配符和正则表达式的搜索提供了非常灵活的搜索，但它们都不能提供一种智能化的选择结果的方法   
 
+为了进行全文本搜索，必须索引被搜索的列，而且要随着数据的改变不断地重新索引。在对表列进行适当设计后， MySQL会自动进行所有的索引和重新索引。  
 
+```
+CREATE TABLE productnotes
+    (
+		note_id int  NOT NULL AUTO_INCREMENT,
+		prod_id char(10)  NOT NULL,
+		note_date datetime NOT NULL,
+		note_text text NULL ,
+		PRIMARY KEY(note_id),
+		FULLTEXT(note_text)
+    )
+    ENGINE=MyISAM;
+```
 
+为了进行全文本搜索，MySQL根据子句FULLTEXT(note_text)的指示对它进行索引。这里的FULLTEXT索引单个列，如果需要也可以指定多个列。  
 
+在定义之后， MySQL自动维护该索引。在增加、更新或删除行时，索引随之自动更新。 
 
+更新索引要花时间，虽然不是很多，但毕竟要花时间。如果正在导入数据到一个新表，此时不应该启用FULLTEXT索引。应该首先导入所有数据，然后再修改表， 定义FULLTEXT。  
 
+进行全文本搜索：
 
+在索引之后，使用两个函数Match()和Against()执行全文本搜索，其中Match()指定被搜索的列， Against()指定要使用的搜索表达式。  
 
+```
+SELECT note_text FROM productnotes WHERE MATCH(note_text) AGAINST('rabbit');
+```
 
+**传递给 Match() 的 值必须与FULLTEXT()定义中的相同。如果指定多个列，则必须列出它们（而且次序正确）。**  
 
+**除非使用BINARY方式，否则全文本搜索不区分大小写。**  
 
+上面的搜索等价于：
 
+```
+SELECT note_text FROM productnotes WHERE note_text LIKE '%rabbit%';
+```
 
+全文本搜索的一个重要部分就是对结果排序。具有较高等级的行先返回：
 
+```
+SELECT note_text, MATCH(note_text) AGAINST('rabbit') AS rank_rabbit FROM productnotes;
+```
 
+使用查询扩展：
 
+查询扩展用来设法放宽所返回的全文本搜索结果的范围。  
 
+```
+SELECT note_text FROM productnotes WHERE MATCH(note_text) AGAINST('dog' WITH QUERY EXPANSION);
+```
 
+布尔文本搜索：
 
+MySQL支持全文本搜索的另外一种形式，称为布尔方式（boolean mode）：
 
+- 要匹配的词
+- 要排斥的词（如果某行包含这个词，则不返回该行，即使它包含其他指定的词也是如此）
+- 排列提示（指定某些词比其他词更重要，更重要的词等级更高）
+- 表达式分组
+- 另外一些内容 
+- 即使没有定义FULLTEXT索引，也可以使用它。但这是一种非常缓慢的操作   
+
+```
+SELECT note_text FROM productnotes WHERE MATCH(note_text) AGAINST('rabbit' IN BOOLEAN MODE);
+```
+
+为了匹配包含rabbit但不包含任意以little开始的词的行， 可使用以下查询：  
+
+```
+SELECT note_text FROM productnotes WHERE MATCH(note_text) AGAINST('rabbit -little*' IN BOOLEAN MODE);
+```
+
+全文本布尔操作符：
+
+![](./img/boolean.png)
+
+ # 数据插入  
+
+插入完整的行：
+
+```
+INSERT INTO <表名称> VALUES(<列值1>,<列值2>,<列值3>...);
+```
+
+- 如果某个列没有值，应该使用NULL值
+- 各个列必须以它们在表定义中出现的次序填充  
+- 虽然这种语法很简单，但并不安全，应该尽量避免使用  
+
+```
+INSERT INTO <表名称>(<列名称1>,<列名称2>,<列名称3>...) VALUES(<列值1>,<列值2>,<列值3>...);
+```
+
+- 在表名后的括号里明确地给出了列名。在插入行时， MySQL将用VALUES列表中的相应值填入列表中的对应项。 VALUES中的第一个值对应于第一个指定的列名。第二个值对应于第二个列名，如此等等
+- 其优点是，即使表的结构改变，此INSERT语句仍然能正确工作
+
+如果表的定义允许，则可以在INSERT操作中省略某些列。省略的列必须满足以下某个条件：
+
+- 该列定义为允许NULL值（无值或空值）  
+- 在表定义中给出默认值。这表示如果不给出值，将使用默认值  
+
+如果数据检索是最重要的（通常是这样），则你可以通过在INSERT和INTO之间添加关键字LOW_PRIORITY，指示MySQL降低INSERT语句的优先级：
+
+```
+INSERT LOW_PRORITY INTO  
+```
+
+ 插入多个行：
+
+```
+INSERT INTO <表名称>(<列名称1>,<列名称2>,<列名称3>...) VALUES(<列值1>,<列值2>,<列值3>...);INSERT INTO <表名称>(<列名称1>,<列名称2>,<列名称3>...) VALUES(<列值1>,<列值2>,<列值3>...);
+```
+
+单条INSERT语句有多组值，每组值用一对圆括号括起来，用逗号分隔  ：
+
+```
+INSERT INTO <表名称>(<列名称1>,<列名称2>,<列名称3>...) VALUES(<列值1>,<列值2>,<列值3>...),(<列值1>,<列值2>,<列值3>...)...。
+```
+
+插入检索出的数据：
+
+INSERT还存在另一种形式，可以利用它将一条SELECT语句的结果插入表中。这就是所谓的INSERT SELECT，顾名思义，它是由一条INSERT语句和一条SELECT语句组成的。  
+
+```
+INSERT INTO <表名称1>(<列名称1>,<列名称2>,<列名称3>,<列名称4>...) SELECT <列名称1>,<列名称2>,<列名称3>,<列名称4>... FROM <表名称2>;
+```
+
+表1 和表2 结构要相同。
+
+# 更新数据  
+
+```
+UPDATE <表名称> SET <列名称1> = <值> WHERE <条件>;
+```
+
+在更新多个列时，只需要使用单个SET命令，每个“列=值”对之间用逗号分隔（最后一列之后不用逗号）。  
+
+```
+UPDATE <表名称> SET <列名称1> = <值>,<列名称2> = <值2>... WHERE <条件>;
+```
+
+UPDATE语句中可以使用子查询，使得能用SELECT语句检索出的数据更新列数据。  
+
+如果用UPDATE语句更新多行，并且在更新这些行中的一行或多行时出一个现错误，则整个UPDATE操作被取消（错误发生前更新的所有行被恢复到它们原来的值）。为即使是发生错误，也继续进行更新，可使用IGNORE关键字。
+
+```
+UPDATE IGNORE <表名称> ...
+```
+
+为了删除某个列的值，可设置它为NULL（假如表定义允许NULL值）。  
+
+```
+UPDATE <表名称> SET <列名称> = NULL WHERE <条件>;
+```
 
 
 
