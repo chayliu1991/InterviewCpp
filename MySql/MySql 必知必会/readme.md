@@ -728,7 +728,21 @@ UPDATE IGNORE <表名称> ...
 UPDATE <表名称> SET <列名称> = NULL WHERE <条件>;
 ```
 
+# 删除数据  
 
+删除一行：
+
+```
+DELETE FROM <表名称> WHERE <条件>;
+```
+
+删除表中的所有行：
+
+```
+DELETE FROM <表名称>;
+```
+
+如果想从表中删除所有行，不要使用DELETE。可使用TRUNCATE TABLE语句，它完成相同的工作，但速度更快。
 
 
 
