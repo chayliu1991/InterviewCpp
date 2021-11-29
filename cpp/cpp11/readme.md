@@ -109,3 +109,141 @@ People<P> pp;	//@ 类型 P 是 People 类型的友元
 People<int> pi;	//@ 对于 int 类型模板参数，友元声明被忽略
 ```
 
+## final/override 控制
+
+C++ 11 中 final 关键字作用是使派生类不可覆盖它所修饰的虚函数。
+
+C++ 中还有一个特点，就是对于基类声明为 virtual 的函数，之后重载的版本都不需要再声明该函数为 virtual，即使在派生类中声明了 virtual，该关键字也是编译器可以忽略的。C++ 11 引入了 override，如果派生类在虚函数声明时使用了 override 描述符，那么该函数就必须在其基类中的同名函数，否则代码将无法通过编译。
+
+## 模板函数的默认模板参数
+
+C++ 11 中模板和函数一样，可以有默认的参数。
+
+默认类模板参数的定义需要按照从右向左的顺序定义，否则编译无法通过：
+
+```
+//@ 编译通过
+template<typename T1,typename T2 = int>
+class DefClass1;
+
+//@ 编译无法通过
+template<typename T1 = int, typename T2>
+class DefClass2;
+```
+
+函数模板的默认模板参数的位置则比较随意：
+
+```
+//@ 编译通过
+template<typename T1 = int,typename T2>
+void DefFunc1(T1 a, T2 b);
+
+//@ 编译通过
+template<typename T1, int a = 0>
+void DefFunc2(T1 a);
+```
+
+## 外部模板
+
+考虑如下情况：
+
+`test.h` 中声明一个目标函数：
+
+```
+template <typename T>
+void fun(T t)
+{}
+```
+
+`test1.cpp` 中定义：
+
+```
+#include "test.h"
+
+void test1()
+{
+	fun(3);
+}
+```
+
+`test2.cpp` 中定义：
+
+```
+#include "test.h"
+
+void test2()
+{
+	fun(4);
+}
+```
+
+由于两个源代码使用的模板函数的参数类型一致，所以在编译 `test1.cpp` 和 `test2.cpp` 时候都会实例化函数 `func<int>(int)`，就会导致代码重复。
+
+![](./img/instantiation.png)
+
+解决办法：
+
+`test1.cpp`：
+
+```
+#include "test.h"
+
+template void fun<int>(int);	//@ 显示实例化
+void test1()
+{
+	fun(3);
+}
+```
+
+`test2.cpp`：
+
+```
+#include "test.h"
+
+extern template void fun<int>(int); 	//@ 外部模板声明
+void test2()
+{
+	fun(4);
+}
+```
+
+![](./img/instantiation2.png)
+
+C++ 11 中允许局部类型和匿名类型做模板类的实参：
+
+```
+template <typename T>
+class X
+{
+};
+
+template <typename T>
+void TempFunc(T t)
+{
+}
+
+struct A
+{
+} a;
+
+struct
+{
+    int i;
+} b; //@ b 是匿名类型变量
+typedef struct
+{
+    int i;
+} B; //@ B 是匿名类型
+
+int main()
+{
+    struct C
+    {
+    } c; //@ c是局部变量
+
+    X<A> x1;
+    X<B> x2;
+    X<C> x3;
+ }
+```
+
