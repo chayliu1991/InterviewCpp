@@ -111,3 +111,44 @@ public:
 };
 ```
 
+# [476. 数字的补数](https://leetcode-cn.com/problems/number-complement/)
+
+```
+class Solution {
+public:
+    int findComplement(int num) {
+        int i = 1;
+        for(;i < num;i++)
+            i <<= 1;
+        return num ^ i;
+    }
+};
+```
+
+# [260. 只出现一次的数字 III](https://leetcode-cn.com/problems/single-number-iii/)
+
+```
+class Solution {
+public:
+    vector<int> singleNumber(vector<int>& nums) {
+        int xnor = 0;
+        for(const auto num : nums)
+            xnor ^= num;
+
+        int mask = 1;
+        while((mask & xnor) == 0)
+            mask <<= 1;
+        
+        int a = 0,b = 0;
+        for(auto const x : nums)
+        {
+            if(mask & x)
+                a ^= x;
+            else
+                b ^= x;
+        }
+        return {a,b};
+    }
+};
+```
+
