@@ -183,6 +183,35 @@ public:
 };
 ```
 
+# [82. 删除排序链表中的重复元素 II](https://leetcode-cn.com/problems/remove-duplicates-from-sorted-list-ii/)
+
+```
+class Solution {
+public:
+    ListNode* deleteDuplicates(ListNode* head) {
+        if(head == nullptr || head->next == nullptr)
+            return head;
+        
+        ListNode dummy(-1);
+        dummy.next = head;
+        ListNode* prev = &dummy;
+        while(prev && prev->next)
+        {
+            ListNode* curr = prev->next;
+            if(curr->next == nullptr || curr->val != curr->next->val)
+                prev = curr;
+            else
+            {
+                while(curr->next && curr->val == curr->next->val)
+                    curr = curr->next;
+                prev->next = curr->next;
+            }
+        }
+        return dummy.next;
+    }
+};
+```
+
 # [83. 删除排序链表中的重复元素](https://leetcode-cn.com/problems/remove-duplicates-from-sorted-list/)
 
 ```
@@ -302,6 +331,123 @@ public:
          curr->next = l1 ? l1 : l2;
          return dummy->next;
      }
+};
+```
+
+# [2. 两数相加](https://leetcode-cn.com/problems/add-two-numbers/)
+
+```
+class Solution {
+public:
+    ListNode* addTwoNumbers(ListNode* l1, ListNode* l2) {
+        ListNode dummy(-1);
+        ListNode* prev = &dummy;
+        int carry = 0;
+
+        for(ListNode *p1 =l1,*p2 = l2;p1 || p2;)
+        {
+            const int a = p1 == nullptr ? 0 : p1->val;
+            const int b = p2 == nullptr ? 0 : p2->val;
+            const int val = (a + b + carry) % 10;
+            carry = (a + b + carry) / 10;
+            prev->next = new ListNode(val);
+
+            p1 = (p1 == nullptr ? nullptr : p1->next);
+            p2 = (p2 == nullptr ? nullptr : p2->next);
+            prev = prev->next;
+        }
+
+        if(carry > 0)
+            prev->next = new ListNode(carry);
+        return dummy.next;
+    }
+};
+```
+
+# [141. 环形链表](https://leetcode-cn.com/problems/linked-list-cycle/)
+
+```
+class Solution {
+public:
+    bool hasCycle(ListNode *head) {
+        ListNode *fast = head,*slow = head;
+        while(fast && fast->next)
+        {
+            fast = fast->next->next;
+            slow = slow->next;
+            if(fast == slow)
+                return true;
+        }
+        return false;
+    }
+};
+```
+
+# [142. 环形链表 II](https://leetcode-cn.com/problems/linked-list-cycle-ii/)
+
+```
+class Solution {
+public:
+    ListNode *detectCycle(ListNode *head) {
+        ListNode *fast = head,*slow = head;
+        while(fast && fast->next)
+        {
+            fast = fast->next->next;
+            slow = slow->next;
+
+            //@ 链表有环
+            if(fast == slow)
+            {
+                fast = head;
+                while(fast != slow)
+                {
+                    slow = slow->next;
+                    fast = fast->next;
+                }
+                return fast;
+            }
+        }
+        return nullptr;        
+    }
+};
+```
+
+# [146. LRU 缓存机制](https://leetcode-cn.com/problems/lru-cache/)
+
+```
+class LRUCache {
+	int cap_;
+    list<pair<int, int>> record_;  //@ pair<key,value>
+	using Iter = list<pair<int,int>>::iterator;	
+    unordered_map<int, Iter> dict_;   
+	
+public:
+    LRUCache(int capacity):cap_(capacity) {
+    }
+    
+    int get(int key) {
+		if(dict_.find(key) == dict_.end())
+			return -1;
+		int res = dict_[key]->second;
+		record_.erase(dict_[key]);
+		record_.push_front({key,res});
+		dict_[key] = record_.begin();
+		return res;
+    }
+    
+    void put(int key, int value) {
+		if(dict_.find(key) != dict_.end())		
+			record_.erase(dict_[key]);
+		
+		record_.push_front({key,value});
+		dict_[key] = record_.begin();
+		
+		if(record_.size() > cap_)
+		{	
+			dict_.erase(record_.back().first);
+			record_.pop_back();
+		}	
+    }
 };
 ```
 
