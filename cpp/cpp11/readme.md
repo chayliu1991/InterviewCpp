@@ -617,7 +617,40 @@ int main()
 	
     return 0;
 }
+```
 
+使用字面量时需要注意：
+
+- 在字面量操作符函数的声明中，`operator ""` 与用户自定义后缀之间必须有空格
+- 后缀建议以下划线开始
+
+另外标准规定：
+
+- 如果字面量为整型数，那么字面量操作符函数只可接受 `unsigned long long` 或者 `const char*` 为其参数，当 `unsigned long long` 无法容纳字面量的时候，编译器会自动将该字面量转换为以 `\0` 为结束符的字符串，并调用以 `const char*` 为参数的版本进行处理
+- 如果字面量为整型数，那么字面量操作符函数只可接受 `long double` 或者 `const char*` 为其参数，当 `long double` 无法容纳字面量的时候，编译器会自动将该字面量转换为以 `\0` 为结束符的字符串，并调用以 `const char*` 为参数的版本进行处理
+- 如果字面量为字符，则字面量操作符函数只可接受一个 `char` 参数
+
+## 内联名字空间
+
+C++11当中引入了内联名字空间的特性，内联名字控件可以让不同名字空间之间相互访问，但是这样会破坏名字空间的分割性：
+
+```
+namespace NameA {
+	inline namespace NameB 
+	{                           
+		struct Example {};
+	}
+
+	inline namespace NameC 
+	{                          
+		template<typename T> class Class {};
+		Example exC;   
+	}
+}
+
+namespace NameA {
+	template<> class Class<Example> {};                // 使用内联名字空间还能在不打开名字空间的情况下，进行模板特化（否则会编译失败）
+}
 ```
 
 
