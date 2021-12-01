@@ -74,6 +74,23 @@ public:
 };
 ```
 
+# [27. 移除元素](https://leetcode-cn.com/problems/remove-element/)
+
+```
+class Solution {
+public:
+    int removeElement(vector<int>& nums, int val) {
+        int index = 0;
+        for(int i = 0;i < nums.size();++i)
+        {
+            if(nums[i] != val)
+                nums[index++] = nums[i];
+        }
+        return index;
+    }
+};
+```
+
 # [26. 删除有序数组中的重复项](https://leetcode-cn.com/problems/remove-duplicates-from-sorted-array/)
 
 ```

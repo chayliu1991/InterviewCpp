@@ -238,5 +238,158 @@ template <typename F,typename ... ArgTypes>
 class std::result_of<F(ArgTypes...)>; 
 ```
 
+使用：
+
+```
+int fn(int) { return int(); }
+typedef int(&fn_ref)(int);
+typedef int(*fn_ptr)(int);
+struct fn_class { int operator()(int i) { return i; } };
+
+int main()
+{
+	typedef std::result_of<decltype(fn)& (int)>::type A;
+	typedef std::result_of<fn_ref(int)>::type B;
+	typedef std::result_of<fn_ptr(int)>::type C;
+	typedef std::result_of<fn_class(int)>::type D;
+
+	std::cout << std::is_same<int, A>::value << std::endl;  //@ true
+	std::cout << std::is_same<int, B>::value << std::endl;  //@ true
+	std::cout << std::is_same<int, C>::value << std::endl;  //@ true
+	std::cout << std::is_same<int, D>::value << std::endl;  //@ true
+
+	return 0;
+}
+```
+
+`std::result_of<F(ArgTypes...)>;`  要求 F 必须是一个可调用对象，不能是一个函数类型，因此下面的方式是错误的：
+
+```
+typedef std::result_of<decltype(fn)(int)>::type A;
+```
+
+## 根据条件禁用或启用某种或某些 type_traits
+
+编译器在匹配重载函数时会匹配所有的重载函数，找到一个最精确匹配的函数，在匹配过程中可能会有一些失败的尝试，当匹配失败时再重试匹配其它的重载函数，这个规则就是 SFINAE(substitution-failure-is-not-an-error)，替换失败并非错误。
+
+ std::enable_if 利用 SFINAE 实现根据条件选择重载函数，其原型为：
+
+```
+template<bool B,class T = void>
+struct enable_if;
+```
+
+使用：
+
+```
+template <class T>
+typename std::enable_if<std::is_arithmetic<T>::value, T>::type foo(T t)
+{
+	return t;
+}
+
+int main()
+{
+	auto r1 = foo(1);
+	auto r2 = foo(1.2);
+	auto r3 = foo("test");
+
+	return 0;
+}
+```
+
+上面对模板参数 T 做了限定，即只能是 arithmetic 类型，如果为非 arithmetic  类型，则编译不过。
+
+std::enable_if 还可以用于模板定义、类模板的特化、入参限定。
+
+限定入参：
+
+```
+//@ 限定入参为 int 类型
+template <typename T>
+T foo1(T t, typename std::enable_if<std::is_integral<T>::value, int>::type = 0)
+{
+	return t;
+}
+foo1(1, 2);  //@ 编译通过
+foo1(1, 2.1);  //@ 编译不通过
+```
+
+限定模板参数：
+
+```\
+//@ 对模板参数 T 做了限定，T 只能是 int 类型
+template <typename T,class = typename std::enable_if<std::is_integral<T>::value>::type>
+T foo2(T t)
+{
+	return t;
+}
+foo2(1); //@ 编译通过
+foo2(2.2);  //@ 编译不通过
+```
+
+类模板特化：
+
+```
+template <typename T, class Enable = void>
+class A;
+
+//@ 模板特化，对模板参数做了限定，模板参数类型只能是浮点型
+template <typename T>
+class A<T, typename std::enable_if<std::is_floating_point<T>::value>::type> {};
+
+A<double> a1; //@ 编译通过
+A<int> a2;  //@ 编译不通过
+```
+
+可以通过判断式和非判断式来将入参分为两大类，从而满足所有的入参类型：
+
+```
+//@ 对于 arithmetic 类型返回 0
+template<typename T>
+typename std::enable_if<std::is_arithmetic<T>::value, int>::type foo(T t)
+{
+	std::cout << t << std::endl;
+	return 0;
+}
+
+//@ 对于非 arithmetic 类型返回 1
+template<typename T>
+typename std::enable_if<!std::is_arithmetic<T>::value, int>::type foo(T& t)
+{
+	std::cout << typeid(T).name() << std::endl;
+	return 1;
+}
+
+//@ 如果第二个模板参数是默认模板参数 void 类型，函数没有返回值时，后面的模板参数可以省略
+template <typename T>
+typename std::enable_if<std::is_arithmetic<T>::value>::type foo(T t)
+{
+	std::cout << typeid(T).name() << std::endl;
+}
+```
+
+std::enable_if  可以实现强大的重载机制，可以利用这个特性来消除圈复杂度较高的 switch-case/if-else 语句：
+
+```
+template <typename T>
+typename std::enable_if<std::is_arithmetic<T>::value, std::string>::type ToString(T t)
+{
+	return std::to_string(t);
+}
+
+template <typename T>
+typename std::enable_if<!std::is_arithmetic<T>::value, std::string>::type ToString(T& t)
+{
+	return t;
+}
+```
+
+# 可变参数模板
+
+
+
+
+
 
 
