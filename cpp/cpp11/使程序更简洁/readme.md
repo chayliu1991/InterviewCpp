@@ -387,3 +387,263 @@ for (auto const v : vec)
 
 # std::function 和 std::bind
 
+## 可调用对象
+
+- 函数指针
+- 具有 `operator()` 成员函数的类对象(仿函数)
+- 可以转换成函数指针的类对象
+- 类的成员(函数)指针
+
+```
+void func(void)
+{
+	std::cout << "func" << std::endl;
+}
+
+struct Foo
+{
+	void operator()(void)
+	{
+		std::cout << "functor" << std::endl;
+	}
+};
+
+struct Bar
+{
+	using fr_t = void(*)(void);
+
+	static void func(void)  //@ 必须是静态函数，没有隐式的 this 参数
+	{
+		std::cout << "Bar::func" << std::endl;
+	}
+
+	operator fr_t(void)
+	{
+		return func;
+	}
+};
+
+struct A
+{
+	int i_;
+	void mem_func(void)
+	{
+		std::cout << "mem_func" << std::endl;
+	}
+};
+
+int main()
+{
+	//@ 函数指针,也可以直接写成 void(*func_ptr)(void) = func;
+	void(*func_ptr)(void) = &func; 
+	func_ptr();
+
+	//@ 仿函数
+	Foo foo;
+	foo(); 
+
+	//@ 可转换为函数指针的类对象
+	Bar bar;
+	bar();  
+
+	void (A::*mem_func_ptr)(void) = &A::mem_func;  //@ 类成员函数指针，这里必须使用 & 
+	int A::*mem_obj_ptr = &A::i_;	 //@ 类成员指针
+	A a;
+	(a.*mem_func_ptr)();
+	a.*mem_obj_ptr = 123;
+
+	return 0;
+}
+```
+
+## std::function
+
+std::function 是可调用对象的包装器，是一个类模板，可以容纳除了类成员(函数)指针以外所有的可调用对象。
+
+```
+void func(void)
+{
+	std::cout << __FUNCTION__ << std::endl;
+}
+
+class Foo
+{
+public:
+	static int foo_func(int a)
+	{
+		std::cout << __FUNCTION__ << "("<<a<<")"<<std::endl;
+		return a;
+	}
+};
+
+class Bar
+{
+public:
+	int operator()(int a)
+	{
+		std::cout << __FUNCTION__ << "(" << a << ")" << std::endl;
+		return a;
+	}
+};
+
+int main()
+{
+	std::function<void(void)> fr1 = func;  //@ 绑定一个普通函数
+	fr1();
+	
+	std::function<int(int)> fr2 = Foo::foo_func; //@ 绑定类的静态成员函数
+	fr2(2);
+
+	Bar bar;
+	std::function<int(int)> fr3 = bar; //@ 绑定一个仿函数
+	fr3(1);
+
+	return 0;
+}
+```
+
+## std::bind
+
+不论是普通函数、函数对象、还是成员函数，成员变量都可以绑定。
+
+std::bind 作用：
+
+- 将可调用对象与其参数绑定成一个仿函数
+- 改变函数调用时需要传参的个数和顺序
+- 先将可调用的对象保存起来，在需要的时候再调用，是一种延迟计算的思想
+
+改变参数的个数和调用顺序：
+
+```
+void func(int a, char c, float f)
+{
+	std::cout << a << " " << c << " " << f << std::endl;
+}
+
+int main()
+{
+	//@ 使用占位符
+	auto f1 = std::bind(func, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+	f1(1, 'c', 3.14);
+
+	//@ 改变传参顺序
+	auto f2 = std::bind(func, std::placeholders::_2, std::placeholders::_3, std::placeholders::_1);
+	f2(3.14,1,'c');
+
+	//@ 使用固定参数改变参数个数
+	auto f3 = std::bind(func, std::placeholders::_1, std::placeholders::_2, 3.14);
+	f3(1,'c');
+	f3(1, 'c', 9.999); //@ 第三个参数将会被忽略掉
+
+	return 0;
+}
+```
+
+绑定类的成员(函数)：
+
+```
+class Test
+{
+public:
+	int mem_func(int a) 
+	{
+		std::cout << a << std::endl;
+		return a + 1;
+	}
+
+	void mem_func2(int a, char c, float f)
+	{
+		std::cout << a << " " << c << " " << f << std::endl;
+	}
+
+	static int static_mem_func(int a)
+	{
+		std::cout << a << std::endl;
+		return a + 100;
+	}
+
+public:
+	int mem_variable = 1024;
+};
+
+
+int main()
+{
+	Test t;
+	
+	//@ 绑定成员函数
+	auto f1 = std::bind(&Test::mem_func,t,std::placeholders::_1);
+	f1(2);
+
+	//@ 绑定多参数成员函数，改变传参顺序
+	auto f2 = std::bind(&Test::mem_func2, t, std::placeholders::_3, std::placeholders::_2, std::placeholders::_1);
+	f2(2.13, 'a',100);
+
+	//@ 绑定静态成员函数
+	auto f3 = std::bind(&Test::static_mem_func,std::placeholders::_1);
+	f3(100);
+
+	//@ 绑定成员变量
+	auto f4 = std::bind(&Test::mem_variable,std::placeholders::_1);
+	int var = f4(t);
+	std::cout << var << std::endl;
+
+	return 0;
+}
+```
+
+绑定仿函数：
+
+```
+struct Test
+{
+	void operator()(int n)
+	{
+		std::cout << n << std::endl;
+	}
+};
+
+int main()
+{
+	auto f1 = std::bind(Test(),std::placeholders::_1);
+	f1(1000);
+
+	Test t;
+	auto f2 = std::bind(t, 10);
+	f2();
+
+	return 0;
+}
+```
+
+std::function 不能容纳类的成员(函数)但是 std::bind 可以绑定类的成员(函数)，std::bind 之后的对象可以使用 std::function 表示，从而实现可调用对象的统一表示方法。
+
+std::bind1st 和 std::bind2nd 是旧标准库中用于将二元算子转换成一元算子的方法：
+
+```
+	std::vector<int> vec{ 1,2,3,4,5,6,7,8,9,10 };
+
+	//@ 旧标准
+	int count1 = std::count_if(vec.begin(), vec.end(), std::bind1st(std::less<int>(), 5)); //@ 第一个参数固定为5，查找大于 5 的元素个数
+	int count2 = std::count_if(vec.begin(), vec.end(), std::bind2nd(std::less<int>(), 5)); //@ 第二个参数固定为5，查找小于 5 的元素个数
+
+	//@ 新标准
+	int count3 = std::count_if(vec.begin(), vec.end(), std::bind(std::less<int>(), 5, std::placeholders::_1)); 
+	int count4 = std::count_if(vec.begin(), vec.end(), std::bind(std::less<int>(), std::placeholders::_1, 5)); 
+```
+
+复合多个函数(闭包)：
+
+```
+std::vector<int> vec{ 1,2,3,4,5,6,7,8,9,10 };
+
+using std::placeholders::_1;
+
+auto f = std::bind(std::logical_and<bool>(),
+    std::bind(std::greater<int>(),_1,5),
+    std::bind(std::less_equal<int>(), _1, 10)
+    );
+
+int count = std::count_if(vec.begin(),vec.end(),f);
+```
+
