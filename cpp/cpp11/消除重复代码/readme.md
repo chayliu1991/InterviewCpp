@@ -387,7 +387,248 @@ typename std::enable_if<!std::is_arithmetic<T>::value, std::string>::type ToStri
 
 # 可变参数模板
 
+声明可变参数模板时需要在 class 或 typename 关键字前面加上 ...：
 
+- 声明一个参数包，这个参数包中可以包含 0 个到任意个模板参数
+- 在模板定义的右边，可以将参数包展开成一个一个独立的参数
+
+
+
+## 可变参数模板函数
+
+```
+template <typename ...T>
+void func(T ...args)
+{
+	std::cout << sizeof...(args) << std::endl; //@ 不要写成 sizeof(...(args))
+}
+
+int main()
+{
+	func();  //@ 0
+	func(1);  //@ 1
+	func(2, "hello", 3.14);  //@ 3
+
+	return 0;
+}
+```
+
+参数包展开的两种方法：
+
+- 递归模板函数来将参数包展开
+- 通过逗号表达式和初始化列表方式展开
+
+### 递归模板函数来将参数包展开
+
+递归函数方式展开参数包：
+
+````
+//@ 递归终止函数
+void print()
+{
+	std::cout << "----- ending -----" << std::endl;
+}
+
+//@ 参数包展开过程中递归调用自己，直到参数为空时调用非模板的递归终止函数
+template <typename T,typename ...Args>
+void print(T head, Args ... rest)
+{
+	std::cout << "parameter:" << head << std::endl;
+	print(rest...);
+}
+int main()
+{
+	print(1,2,3,4,5,6); 
+	print(2, "hello", 3.14);
+
+	return 0;
+}
+````
+
+还可以采用 type_traits 来实现：
+
+```
+template <std::size_t I = 0, typename Tuple>
+typename  std::enable_if<I == std::tuple_size<Tuple>::value>::type  printTP(Tuple t)
+{
+	std::cout << "----- ending -----" << std::endl;
+}
+
+template <std::size_t I = 0, typename Tuple>
+typename  std::enable_if<I < std::tuple_size<Tuple>::value>::type  printTP(Tuple t)
+{
+	//@ 通过递增索引值，获取当前值
+	std::cout << std::get<I>(t) << std::endl;
+	printTP<I + 1>(t);
+}
+
+template <typename ...Args>
+void print(Args... args)
+{
+	//@ 转换成 std::tuple
+	printTP(std::make_tuple(args...));
+}
+```
+
+### 通过逗号表达式和初始化列表方式展开
+
+逗号表达式和初始化列表方式展开参数包：
+
+采用逗号表达式和初始化列表则需要定义终止函数：
+
+```
+void printArg(T t)
+{
+	std::cout << t << std::endl;
+}
+
+template <class ...Args>
+void expand(Args... args)
+{
+	//@ printArg(args),0) 先执行 printArg(args) 再返回 0
+	//@ 依次展开 printArg(args1),0)，printArg(args2),0)，printArg(args3),0)...
+	//@ 最终创建元素都为0 的 arr[sizeof(args)]
+	int arr[] = { (printArg(args),0)... };
+
+	std::cout << "-------------------------------------" << std::endl;
+	std::cout << sizeof(arr)/sizeof(int) << std::endl;
+}
+```
+
+使用初始化列表代替数组：
+
+```
+template <class ...Args>
+void expand(Args... args)
+{
+	std::initializer_list<int>{ (printArg(args),0)... };
+}
+```
+
+使用 lambda 表达式进一步改进：
+
+```
+template <class ...Args>
+void expand(Args... args)
+{
+	std::initializer_list<int>{([&] {std::cout << args << std::endl; }(),0)...};
+}
+```
+
+## 可变参数模板类
+
+ 可变参数模板类的参数包展开需要通过：
+
+- 模板特化
+- 继承方式
+
+### 模板特化
+
+模板递归和特化方式展开参数包：
+
+```
+//@ 前向声明，声明 Size 是一个可变参模板类
+template <typename ...Args>
+struct Size;
+
+//@ 定义一个部分展开的可变参模板类，如何递归展开参数包
+//@ 这里也限定了 Size 类必须至少有一个参数，因为可变参模板类可以有 0 个方式，0 个参数没有意义时可以通过这样的声明来限制
+template <typename First, typename...Rest>
+struct Size<First, Rest...>
+{
+	enum { value = Size<First>::value + Size<Rest...>::value };
+};
+
+//@ 特化的终止类
+template <typename Last>
+struct Size<Last>
+{
+	enum { value = sizeof(Last) };
+};
+
+int main()
+{
+	auto sz = Size<int, double, short>::value; 
+	return 0;
+}
+```
+
+可以去掉前向声明：
+
+```
+template <typename First, typename...Rest>
+struct Size
+{
+	enum { value = Size<First>::value + Size<Rest...>::value };
+};
+
+//@ 特化的终止类
+template <typename Last>
+struct Size<Last>
+{
+	enum { value = sizeof(Last) };
+};
+```
+
+可以使用 std::integral_constant 来消除 value 的定义：
+
+```
+//@ 前向声明
+template <typename ...Args>
+struct Size;
+
+//@ 基本定义
+template <typename First,typename ...Rest>
+struct Size<First, Rest...> : std::integral_constant<int, Size<First>::value + Size<Rest...>::value>
+{
+};
+
+//@ 递归终止
+template <typename Last>
+struct Size<Last> : std::integral_constant<int, sizeof(Last)>
+{
+};
+
+int main()
+{
+	auto sz = Size<int, double, short>::value;
+	return 0;
+}
+```
+
+### 继承方式
+
+继承方式展开参数包：
+
+```
+//@ 整型序列的定义
+template<int...>
+struct IndexSeq {};
+
+//@ 继承方式，开始展开参数包
+//@ MakeIndexes 继承于自身的一个特化的模板类，这个特化的模板类同时也在展开参数包
+//@ 参数包的展开过程是通过继承发起的，直到遇到特化的终止条件展开过程才结束
+//@ MakeIndexes<3,IndexSeq<>> : MakeIndexes<2,IndexSeq<2>>{}
+//@ MakeIndexes<2,IndexSeq<2>> : MakeIndexes<1,IndexSeq<1,2>>{}
+//@ MakeIndexes<1,IndexSeq<1,2>> : MakeIndexes<0,IndexSeq<0,1,2>>{typedef }
+template<int N, int... Indexes>
+struct MakeIndexes : MakeIndexes<N - 1, N - 1, Indexes...> {};
+
+//@ 模板特化，终止展开参数包的条件
+template<int... Indexes>
+struct MakeIndexes<0, Indexes...>
+{
+	typedef IndexSeq<Indexes...> type;
+};
+
+int main()
+{
+	using T = MakeIndexes<3>::type;
+	std::cout << typeid(T).name() << std::endl; //@ struct IndexSeq<0,1,2>
+
+	return 0;
+}
+```
 
 
 
