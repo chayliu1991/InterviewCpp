@@ -257,19 +257,48 @@ public:
     int largestRectangleArea(vector<int>& heights) {
         int res = 0;
         std::stack<int> s;
-        heights.insert(heights.begin(),0);
         heights.push_back(0);
-        for(int i = 0;i < heights.size();i++)
+        for(int i = 0;i < heights.size();)
         {
-            while(!s.empty() && heights[i] < heights[s.top()])
+            if(s.empty() || heights[i] > heights[s.top()])
+            {
+                s.push(i++);
+            }
+            else
             {
                 int curr = s.top();
                 s.pop();
-                res = std::max(res,heights[curr] * (i - s.top() -1));
+                res = std::max(res,heights[curr] * (s.empty() ? i : i - s.top() - 1));
+            }
+        }
+        return res;
+    }
+};
+```
+
+# [42. 接雨水](https://leetcode-cn.com/problems/trapping-rain-water/)
+
+```
+class Solution {
+public:
+    int trap(vector<int>& height) {
+        int res = 0;
+        std::stack<int> s;
+        for(int i=0;i < height.size();++i)
+        {
+            while(!s.empty() && height[s.top()] < height[i])
+            {
+                int curr = s.top();
+                s.pop();
+                if(s.empty())
+                    break;
+                int left = s.top(),right = i;
+                int h = min(height[left],height[right])-height[curr];
+                res += (right - left - 1) * h;
             }
             s.push(i);
         }
-        return res;
+        return res;        
     }
 };
 ```
