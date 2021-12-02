@@ -630,7 +630,608 @@ int main()
 }
 ```
 
+# Optional  的实现
 
+`Optional<T>`  内部可能存储了 T 类型，也可能没有存储 T 类型，只有当 Optional  被 T 初始化之后，Optional  才是有效的，否则无效。
 
+```
+#pragma once
+#include <type_traits>
+#include <utility>
+#include <stdexcept>
 
+template<typename T>
+class Optional
+{
+    using DataType = typename std::aligned_storage<sizeof(T), std::alignment_of<T>::value>::type;
+
+public:
+    Optional() : has_init_(false) {}
+
+    Optional(const T& v)
+    {
+        create(v);
+    }
+
+    Optional(T&& v) : has_init_(false)
+    {
+        create(std::move(v));
+    }
+
+    ~Optional()
+    {
+        destroy();
+    }
+
+    Optional(const Optional& other) : has_init_(false)
+    {
+        if (other.is_init())
+            assign(other);
+    }
+
+    Optional(Optional&& other) : has_init_(false)
+    {
+        if (other.is_init())
+        {
+            assign(std::move(other));
+            other.destroy();
+        }
+    }
+
+    Optional& operator=(Optional &&other)
+    {
+        assign(std::move(other));
+        return *this;
+    }
+
+    Optional& operator=(const Optional &other)
+    {
+        assign(other);
+        return *this;
+    }
+
+    template<class... Args>
+    void emplace(Args&&... args)
+    {
+        destroy();
+        create(std::forward<Args>(args)...);
+    }
+
+    bool is_init() const { return has_init_; }
+
+    explicit operator bool() const 
+    {
+        return is_init();
+    }
+
+    T& operator*()
+    {
+        if(is_init())
+        {
+            return *((T*) (&data_));
+        }
+
+        throw std::logic_error{"try to get data in a Optional which is not initialized"};
+    }
+
+    const T& operator*() const
+    {
+        if(is_init())
+        {
+            return *((T*) (&data_));
+        }
+
+        throw std::logic_error{"try to get data in a Optional which is not initialized"};
+    }
+
+    T* operator->()
+    {
+        return &operator*();
+    }
+
+    const T* operator->() const
+    {
+        return &operator*();
+    }
+
+    bool operator==(const Optional<T>& rhs) const
+    {
+        return (!bool(*this)) != (!rhs) ? false : (!bool(*this) ? true : (*(*this)) == (*rhs));
+    }
+
+    bool operator<(const Optional<T>& rhs) const
+    {
+        return !rhs ? false : (!bool(*this) ? true : (*(*this) < (*rhs)));
+    }
+
+    bool operator!=(const Optional<T>& rhs)
+    {
+        return !(*this == (rhs));
+    }
+
+private:
+    template<class... Args>
+    void create(Args&&... args)
+    {
+        new (&data_) T(std::forward<Args>(args)...);
+        has_init_ = true;
+    }
+
+    void destroy()
+    {
+        if (has_init_)
+        {
+            has_init_ = false;
+            ((T*) (&data_))->~T();
+        }
+    }
+
+    void assign(const Optional& other)
+    {
+        if (other.is_init())
+        {
+            copy(other.data_);
+            has_init_ = true;
+        }
+        else
+        {
+            destroy();
+        }
+    }
+
+    void assign(Optional&& other)
+    {
+        if (other.is_init())
+        {
+            move(std::move(other.data_));
+            has_init_ = true;
+            other.destroy();
+        }
+        else
+        {
+            destroy();
+        }
+    }
+
+    void move(DataType&& val)
+    {
+        destroy();
+        new (&data_) T(std::move(*((T*)(&val))));
+    }
+
+    void copy(const DataType& val)
+    {
+        destroy();
+        new (&data_) T(*((T*) (&val)));
+    }
+
+private:
+    bool has_init_;
+    DataType data_;
+};
+```
+
+测试：
+
+```
+struct MyStruct
+{
+	MyStruct(int a, int b) :m_a(a), m_b(b) {}
+	int m_a;
+	int m_b;
+};
+
+int main()
+{
+	Optional<std::string> s1("hello");
+	if (s1)
+		std::cout << "s1 init:" << *s1 << std::endl;
+
+	Optional<std::string> s2 = s1;
+	if (s1)
+		std::cout << "s1 init:" << *s1 << std::endl;
+	if (s2)
+		std::cout << "s2 init:" << *s2 << std::endl;
+
+	Optional<MyStruct> t;
+	if (t)
+		std::cout << "t init:" << (*t).m_a << "," << (*t).m_b << std::endl;
+	t.emplace(2, 5);
+	if (t)
+		std::cout << "t init:" << (*t).m_a << "," << (*t).m_b << std::endl;
+
+	return 0;
+}
+```
+
+# 惰性求值
+
+惰性求值一般用于函数式编程语言中，使用延迟求值的时候，表达式不在它被绑定到变量之后就立即求值，而是在需要的时候再求值。
+
+```
+#pragma once
+#include "Optional.hpp"
+
+template <typename T>
+struct Lazy
+{
+	Lazy() {}
+
+	template<typename Func, typename ...Args>
+	Lazy(Func& f, Args&&...args)
+	{
+		func_ = [&f, &args...]{ return f(args...); };
+		//func_ = std::bind(f,std::forward<Args...>(args)...);  //@ ok
+	}
+
+	T& value()
+	{
+		if (!value_.is_init())
+		{
+			value_ = func_();
+		}
+		return *value_;
+	}
+
+	bool is_value_created()const
+	{
+		return value_.is_init();
+	}
+
+private:
+	std::function<T()> func_; //@ 用于存放传入的函数,返回 T 类型，无参数，参数可以通过 lambda 表达式绑定
+	Optional<T> value_;    //@ 用于存放求值结果，可以通过 Optional 特性判断是否已经初始化，节省变量
+};
+
+//@ 包装函数，用于自动推断返回类型
+template<class Func, typename ...Args>
+Lazy<typename std::result_of<Func(Args...)>::type> make_lazy(Func&& func, Args&& ...args)
+{
+	return Lazy<typename std::result_of<Func(Args...)>::type>(std::forward<Func>(func), std::forward<Args>(args)...);
+}
+```
+
+测试：
+
+```
+struct BigObject
+{
+	BigObject()
+	{
+		std::cout << "load big object" << std::endl;
+	}
+};
+
+struct SmallObj
+{
+	SmallObj()
+	{
+		lazy_big_obj_ = make_lazy([] {return std::make_shared<BigObject>(); });
+	}
+
+	void load()
+	{
+		lazy_big_obj_.value();
+	}
+
+	Lazy<std::shared_ptr<BigObject>> lazy_big_obj_;
+};
+
+int test(int x)
+{
+	return x * 2;
+}
+
+int main()
+{
+	//@ 带参数的普通函数
+	int y = 4;
+	auto lz1 = make_lazy(test, y);
+	std::cout << lz1.value() << std::endl;
+
+	//@ 不带参数的 lambda 
+	Lazy<int> lz2 = make_lazy([] {return 12; });
+	std::cout << lz2.value() << std::endl;
+
+	//@ 带参数的 fuction
+	std::function <int(int)> f = [](int x) {return x + 2; };
+	auto lz3 = make_lazy(f, 3);
+	std::cout << lz3.value() << std::endl;
+
+	//@ 延迟加载大的对象
+	SmallObj st;
+	st.load();
+
+	return 0;
+}
+```
+
+# lambda 链式调用
+
+```
+#include <functional>
+#include <iostream>
+#include <type_traits>
+
+template <typename T>
+class Task;
+
+template <typename R, typename ...Args>
+class Task<R(Args...)>
+{
+public:
+	Task(std::function<R(Args...)>&& f) : func_(std::move(f)) {}
+	Task(std::function<R(Args...)>& f) : func_(f) {}
+
+	R run(Args&&...args)
+	{
+		return func_(std::forward<Args>(args)...);
+	}
+
+	template <typename F>
+	auto then(F&& f)->Task<typename std::result_of<F(R)>::type(Args...)>
+	{
+		using return_type = typename std::result_of<F(R)>::type;
+		auto func = std::move(func_);
+		return Task<return_type(Args...)>([func, &f](Args...args)
+		{
+			return f(func(std::forward<Args>(args)...));
+		});
+	}
+
+private:
+	std::function<R(Args...)> func_;
+};
+```
+
+说明：
+
+```
+int main()
+{
+	Task<int(int)> task([](int i) { return i; });
+	auto res = task.then([](int i) { return i + 1; }).then([](int i) {return i + 2; }).then([](int i) {return i + 3; }).run(10);
+	std::cout << res << std::endl; //@ 16
+
+	return 0;
+}
+```
+
+# Any 的实现
+
+Any 类是一个特殊的只能容纳一个元素的容器，它可以擦除类型，可以赋给它任何类型的值，在实际使用时再根据实际的类型进行转换。
+
+```
+#pragma once
+#include <memory>
+#include <typeindex>
+#include <exception>
+#include <iostream>
+
+struct Any
+{
+	Any(void) : tp_index_(std::type_index(typeid(void))) {}
+	Any(const Any& that) : bptr_(that.clone()), tp_index_(that.tp_index_) {}
+	Any(Any && that) : bptr_(std::move(that.bptr_)), tp_index_(that.tp_index_) {}
+
+	//@ 创建智能指针时，对于一般的类型，通过std::decay来移除引用和cv符，从而获取原始类型
+	template<typename U, class = typename std::enable_if<!std::is_same<typename std::decay<U>::type, Any>::value, U>::type> 
+	Any(U && value) : bptr_(new Derived < typename std::decay<U>::type>(std::forward<U>(value))),
+					  tp_index_(std::type_index(typeid(typename std::decay<U>::type))) {}
+
+	bool is_null() const { return !bool(bptr_); }
+
+	template<class U> 
+	bool is() const
+	{
+		return tp_index_ == std::type_index(typeid(U));
+	}
+
+	//@ 将Any转换为实际的类型
+	template<class U>
+	U& any_cast()
+	{
+		if (!is<U>())
+		{
+			std::cout << "can not cast " << typeid(U).name() << " to " << tp_index_.name() << std::endl;
+			throw std::logic_error{ "bad cast" };
+		}
+
+		auto derived = dynamic_cast<Derived<U>*> (bptr_.get());
+		return derived->value_;
+	}
+
+	Any& operator=(const Any& a)
+	{
+		if (bptr_ == a.bptr_)
+			return *this;
+
+		bptr_ = a.clone();
+		tp_index_ = a.tp_index_;
+		return *this;
+	}
+
+	Any& operator=(Any&& a)
+	{
+		if (bptr_ == a.bptr_)
+			return *this;
+
+		bptr_ = std::move(a.bptr_);
+		tp_index_ = a.tp_index_;
+		return *this;
+	}
+
+private:
+	struct Base;
+	typedef std::unique_ptr<Base> BasePtr;
+
+	struct Base
+	{
+		virtual ~Base() {}
+		virtual BasePtr clone() const = 0;
+	};
+
+	template<typename T>
+	struct Derived : Base
+	{
+		template<typename U>
+		Derived(U && value) : value_(std::forward<U>(value)) { }
+
+		BasePtr clone() const
+		{
+			return BasePtr(new Derived<T>(value_));
+		}
+
+		T value_;
+	};
+
+	BasePtr clone() const
+	{
+		if (bptr_ != nullptr)
+			return bptr_->clone();
+		return nullptr;
+	}
+
+	BasePtr bptr_;
+	std::type_index tp_index_;
+};
+```
+
+测试：
+
+```
+int main()
+{
+	std::vector<Any> vec;
+	vec.push_back(1);
+	vec.push_back(std::string("hello"));
+	auto v1 = vec[0].any_cast<int>();
+	auto v2 = vec[1].any_cast<std::string>();
+
+	Any any2 = 100;
+	auto res = any2.any_cast<int>();
+
+	Any any;
+	auto r = any.is_null();  //@ true
+	std::string s1 = "hello";
+	any = s1;
+	any.any_cast<int>(); //@ crash
+
+	return 0;
+}
+```
+
+# function_traits
+
+function_traits 可以用来获取函数的实际类型、返回类型、参数个数、参数具体的类型。
+
+```
+template<typename T>
+struct function_traits;
+
+//@ 普通函数.
+template<typename Ret, typename... Args>
+struct function_traits<Ret(Args...)>
+{
+public:
+	enum { arity = sizeof...(Args) };
+	typedef Ret function_type(Args...);
+	typedef Ret return_type;
+	using stl_function_type = std::function<function_type>;
+	typedef Ret(*pointer)(Args...);
+
+	template<size_t I>
+	struct args
+	{
+		static_assert(I < arity, "index is out of range, index must less than sizeof Args");
+		using type = typename std::tuple_element<I, std::tuple<Args...>>::type; //@ 获取指定位置的元素类型
+	};
+
+	typedef std::tuple<std::remove_cv_t<std::remove_reference_t<Args>>...> tuple_type;
+	typedef std::tuple<std::remove_const_t<std::remove_reference_t<Args>>...> bare_tuple_type;
+};
+
+//@函数指针.
+template<typename Ret, typename... Args>
+struct function_traits<Ret(*)(Args...)> : function_traits<Ret(Args...)> {};
+
+//@ std::function.
+template <typename Ret, typename... Args>
+struct function_traits<std::function<Ret(Args...)>> : function_traits<Ret(Args...)> {};
+
+//@ member function.
+#define FUNCTION_TRAITS(...)\
+template <typename ReturnType, typename ClassType, typename... Args>\
+struct function_traits<ReturnType(ClassType::*)(Args...) __VA_ARGS__> : function_traits<ReturnType(Args...)>{};
+
+FUNCTION_TRAITS()
+FUNCTION_TRAITS(const)
+FUNCTION_TRAITS(volatile)
+FUNCTION_TRAITS(const volatile)
+
+//@ 函数对象
+template<typename Callable>
+struct function_traits : function_traits<decltype(&Callable::operator())> {};
+
+template <typename Function>
+typename function_traits<Function>::stl_function_type to_function(const Function& lambda)
+{
+	return static_cast<typename function_traits<Function>::stl_function_type>(lambda);
+}
+
+template <typename Function>
+typename function_traits<Function>::stl_function_type to_function(Function&& lambda)
+{
+	return static_cast<typename function_traits<Function>::stl_function_type>(std::forward<Function>(lambda));
+}
+
+template <typename Function>
+typename function_traits<Function>::pointer to_function_pointer(const Function& lambda)
+{
+	return static_cast<typename function_traits<Function>::pointer>(lambda);
+}
+```
+
+测试：
+
+```
+template<typename T>
+void print_type()
+{
+	std::cout << typeid(T).name() << std::endl;
+}
+
+float(*func_ptr)(std::string, int);
+static float static_function(const std::string& a, int b)
+{
+	return (float)a.size() / b;
+}
+
+struct Test
+{
+	int f(int a, int b)volatile { return a + b; }
+	int operator()(int)const { return 0; }
+};
+
+int main()
+{
+	std::function<int(int)> f = [](int a) {return a; };
+	print_type<function_traits<std::function<int(int)>>::function_type>();
+	print_type<function_traits<std::function<int(int)>>::args<0>::type>();
+
+	print_type<function_traits<decltype(f)>::function_type>();
+	print_type<function_traits<decltype(func_ptr)>::function_type>();
+	print_type<function_traits<decltype(static_function)>::function_type>();
+
+	print_type<function_traits<Test>::function_type>();
+	using T = decltype(&Test::f);
+	print_type<T>();
+
+	print_type<function_traits<decltype(&Test::f)>::function_type>();
+
+	return 0;
+}
+```
+
+# Variant 的实现
 
