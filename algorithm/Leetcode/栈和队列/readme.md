@@ -1,3 +1,44 @@
+# [225. 用队列实现栈](https://leetcode-cn.com/problems/implement-stack-using-queues/)
+
+```
+class MyStack {
+public:
+    MyStack() {
+
+    }
+    
+    void push(int x) {
+        data.push(x);
+    }
+    
+    int pop() {
+        std::queue<int> tmp;
+        while(data.size() > 1)
+        {
+            tmp.push(data.front());
+            data.pop();
+        }
+        int res = data.front();
+        data.pop();
+        data = std::move(tmp);
+        return res;
+    }
+    
+    int top() {
+        int res = pop();
+        push(res);
+        return res;
+    }
+    
+    bool empty() {
+        return data.empty();
+    }
+    
+private:
+    std::queue<int> data;
+};
+```
+
 # [232. 用栈实现队列](https://leetcode-cn.com/problems/implement-queue-using-stacks/)
 
 ```
@@ -79,7 +120,8 @@ public:
     int getMin() {
         return s_min.top();
     }
-
+    
+private:
     std::stack<int> s_data;
     std::stack<int> s_min;
 };
@@ -170,6 +212,64 @@ public:
                 pq.push(tmp->next);
         }
         return dummy.next;
+    }
+};
+```
+
+# [239. 滑动窗口最大值](https://leetcode-cn.com/problems/sliding-window-maximum/)
+
+```
+class Solution {
+public:
+    vector<int> maxSlidingWindow(vector<int>& nums, int k) {
+        if(k <= 0)
+            return {};
+        
+        std::vector<int> res;
+        std::deque<int> dq;
+        for(int i = 0;i < k;i++)
+        {
+            while(!dq.empty() && nums[dq.back()] <= nums[i])
+                dq.pop_back();
+            dq.push_back(i);
+        }
+        res.emplace_back(nums[dq.front()]);
+
+        for(int i = k;i < nums.size();i++)
+        {
+            while(!dq.empty() && i - dq.front() >= k)
+                dq.pop_front();
+             while(!dq.empty() && nums[dq.back()] <= nums[i])
+                dq.pop_back();
+            dq.push_back(i);
+            res.emplace_back(nums[dq.front()]);
+        }
+        return res;
+    }
+};
+```
+
+# [84. 柱状图中最大的矩形](https://leetcode-cn.com/problems/largest-rectangle-in-histogram/)
+
+```
+class Solution {
+public:
+    int largestRectangleArea(vector<int>& heights) {
+        int res = 0;
+        std::stack<int> s;
+        heights.insert(heights.begin(),0);
+        heights.push_back(0);
+        for(int i = 0;i < heights.size();i++)
+        {
+            while(!s.empty() && heights[i] < heights[s.top()])
+            {
+                int curr = s.top();
+                s.pop();
+                res = std::max(res,heights[curr] * (i - s.top() -1));
+            }
+            s.push(i);
+        }
+        return res;
     }
 };
 ```

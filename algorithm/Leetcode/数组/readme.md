@@ -193,3 +193,23 @@ public:
 };
 ```
 
+# [566. 重塑矩阵](https://leetcode-cn.com/problems/reshape-the-matrix/)
+
+```
+class Solution {
+public:
+    vector<vector<int>> matrixReshape(vector<vector<int>>& mat, int r, int c) {
+        int rows = mat.size(),cols = mat[0].size();
+        if(rows * cols != r * c)
+            return mat;
+        
+        std::vector<std::vector<int>> res(r,std::vector<int>(c,0));
+        for(int i = 0;i < r*c;i++)
+        {
+            res[i/c][i%c] = mat[i/cols][i%cols];
+        }
+        return res;
+    }
+};
+```
+
