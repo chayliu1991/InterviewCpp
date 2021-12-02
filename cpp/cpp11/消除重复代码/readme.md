@@ -1573,3 +1573,519 @@ int main()
 # tuple_helper
 
 std::tuple 具有很多编译期计算的特性，正是这些独特的特性使得它既能用于编译期计算，又可以用于运行期计算。
+
+## 打印 tuple
+
+模板类特化和递归调用结合展开 tuple：
+
+```
+template <class Tuple, size_t N>
+struct TuplePrinter
+{
+	static void print(const Tuple& t)
+	{
+		TuplePrinter<Tuple, N - 1>::print(t);
+		std::cout << "," << std::get<N - 1>(t);
+	}
+};
+
+template <class Tuple>
+struct TuplePrinter<Tuple, 1>
+{
+	static void print(const Tuple& t)
+	{
+		std::cout << std::get<0>(t);
+	}
+};
+
+template<class...Args>
+void print_tuple(const std::tuple<Args...>& t)
+{
+	std::cout << "(";
+	TuplePrinter<decltype(t), sizeof...(Args)>::print(t);
+	std::cout << ")\n";
+}
+```
+
+测试：
+
+```
+int main()
+{
+	std::tuple<int, short, double, char, std::string> tp = std::make_tuple(1, 2, 3, 'a', std::string("hello"));
+	print_tuple(tp);
+
+	return 0;
+}
+```
+
+通过索引序列来展开：
+
+```
+template <int...>
+struct IndexTuple {};
+
+template <int N, int...Indexs>
+struct MakeIndexes : MakeIndexes<N - 1, N - 1, Indexs...> {};
+
+template <int...Indexs>
+struct MakeIndexes<0, Indexs...>
+{
+	typedef IndexTuple<Indexs...> type;
+};
+
+template <typename T>
+void print(T t)
+{
+	std::cout << t << std::endl;
+}
+
+template <typename T, typename ...Args>
+void print(T t, Args...args)
+{
+	std::cout << t << std::endl;
+	print(args...);
+}
+
+template <typename Tuple, int...Indexs>
+void print_tuple(IndexTuple<Indexs...>& in, Tuple& tp)
+{
+	print(std::get<Indexs>(tp)...);
+}
+```
+
+测试：
+
+```
+int main()
+{
+	using Tuple = std::tuple<int, double, char>;
+	Tuple tp = std::make_tuple(1, 2.9, 'a');
+	print_tuple(MakeIndexes<std::tuple_size<Tuple>::value>::type(), tp);
+
+	return 0;
+}
+```
+
+## 根据元素值获取索引位置
+
+```
+namespace detail
+{
+	//@ 对于可转换的类型值则直接比较
+	template <typename T, typename U>
+	typename std::enable_if<std::is_convertible<T, U>::value || std::is_convertible<U, T>::value, bool>::type
+	compare(T t, U u)
+	{
+		return t == u;
+	}
+
+	//@ 不能互相转换的则直接返回false
+	bool compare(...)
+	{
+		return false;
+	}
+
+
+	//@ 根据值查找索引
+	template<int I, typename T, typename... Args>
+	struct find_index
+	{
+		static int call(const std::tuple<Args...>& t, T&& val)
+		{
+			return (compare(std::get<I - 1>(t), val) ? I - 1 : find_index<I - 1, T, Args...>::call(t, std::forward<T>(val)));
+		}
+	};
+
+	template<typename T, typename... Args>
+	struct find_index<0, T, Args...>
+	{
+		static int call(std::tuple<Args...> const& t, T&& val)
+		{
+			return compare(std::get<0>(t), val) ? 0 : -1;
+		}
+	};
+}
+
+template<typename T, typename... Args>
+int find_index(std::tuple<Args...> const& t, T&& val)
+{
+	return detail::find_index<sizeof...(Args), T, Args...>::call(t, std::forward<T>(val));
+}
+```
+
+测试：
+
+```
+int main()
+{
+	std::tuple<int, double, std::string> tp = std::make_tuple(1, 2, std::string("OK"));
+	int index = find_index(tp, std::string("OK"));
+
+	std::cout << index << std::endl;
+
+	return 0;
+}
+```
+
+## 在运行期根据索引获取元素
+
+通常情况下不允许在运行期间根据索引获取值：
+
+```
+int i = 0;
+std::get<i>(tuple); //@ 不合法
+```
+
+要通过运行时的变量来获取 tuple 中元素值，需要将运行期的变量映射为编译期常量。
+
+```
+template <size_t k, typename Tuple>
+typename std::enable_if<(k == std::tuple_size<Tuple>::value)>::type
+get_parameter_by_index(size_t index, Tuple& tp)
+{
+	throw std::invalid_argument("arg index out of range");
+}
+
+template <size_t k = 0, typename Tuple>
+typename std::enable_if<(k < std::tuple_size<Tuple>::value)>::type
+	get_parameter_by_index(size_t index, Tuple& tp)
+{
+	if (k == index)
+	{
+		std::cout << std::get<k>(tp) << std::endl;
+	}
+	else
+	{
+		get_parameter_by_index<k + 1>(index, tp);
+	}
+}
+```
+
+测试：
+
+```
+int main()
+{
+	using Tuple = std::tuple<int, double, std::string, int>;
+	Tuple tp = std::make_tuple(1, 2, "test", 3);
+	const size_t length = std::tuple_size<Tuple>::value;
+
+	//@ 打印每个元素
+	for (size_t i = 0; i < length; ++i)
+	{
+		get_arguement_by_index<0>(i, tp);
+	}
+
+	get_arguement_by_index(4, tp);  //@ 索引超出范围将抛出异常
+
+	return 0;
+}
+```
+
+这里通过递归方式自增编译期常量 K，将 K 与运行期变量 index 做比较，两者相等时，调用编译期常量 K 来获取 tuple 中的第 K 个元素。
+
+还可以通过参数包逐步展开的方式：
+
+```
+template <typename Arg>
+void GetArgByIndex(int index, std::tuple<Arg>& tp)
+{
+	std::cout << std::get<0>(tp) << std::endl;
+}
+
+template <typename Arg, typename... Args>
+void GetArgByIndex(int index, std::tuple<Arg, Args...>& tp)
+{
+	if (index < 0 || index >= std::tuple_size<std::tuple<Arg, Args...>>::value)
+	{
+		throw std::invalid_argument("index is not valid");
+	}
+
+	if (index > 0)
+	{
+		GetArgByIndex(index - 1, (std::tuple<Args...>&) tp);
+	}
+	else
+	{
+		std::cout << std::get<0>(tp) << std::endl;
+	}
+}
+```
+
+## 遍历 tuple
+
+```
+template <int...>
+struct IndexTuple {};
+
+template <int N, int...Indexs>
+struct make_indexes : make_indexes<N - 1, N - 1, Indexs...> {};
+
+template <int...Indexs>
+struct make_indexes<0, Indexs...>
+{
+	typedef IndexTuple<Indexs...> type;
+};
+
+namespace detail {
+
+	template<typename Func, typename Last>
+	void for_each_impl(Func&& f, Last&& last)
+	{
+		f(last);
+	}
+
+	template<typename Func, typename First, typename ... Rest>
+	void for_each_impl(Func&& f, First&& first, Rest&&...rest)
+	{
+		f(first);
+		for_each_impl(std::forward<Func>(f), rest...);
+	}
+
+	template<typename Func, int ... Indexes, typename ... Args>
+	void for_each_helper(Func&& f, IndexTuple<Indexes...>, std::tuple<Args...>&& tup)
+	{
+		for_each_impl(std::forward<Func>(f), std::forward<Args>(std::get<Indexes>(tup))...);
+	}
+
+} // namespace detail
+
+template<typename Func, typename Tuple>
+void tp_for_each(Func&& f, Tuple& tup)
+{
+	using namespace detail;
+	for_each_helper(std::forward<Func>(f), typename make_indexes<
+		std::tuple_size<Tuple>::value>::type(), tup);
+}
+
+template<typename Func, typename Tuple>
+void tp_for_each(Func&& f, Tuple&& tup)
+{
+	using namespace detail;
+	for_each_helper(std::forward<Func>(f), typename make_indexes<
+		std::tuple_size<Tuple>::value>::type(),
+		std::forward<Tuple>(tup));
+}
+
+struct Functor
+{
+	template <typename T>
+	void operator()(T& t) const
+	{
+		//t.doSomething();
+		std::cout << t << std::endl;
+	}
+};
+```
+
+测试：
+
+```
+int main()
+{
+	tp_for_each(Functor(), std::make_tuple<int, double>(1, 2.5));
+
+	return 0;
+}
+```
+
+## 反转 tuple
+
+```
+template <int...>
+struct IndexTuple {};
+
+template <int N, int...Indexs>
+struct MakeIndexes : MakeIndexes<N - 1, N - 1, Indexs...> {};
+
+template <int...Indexs>
+struct MakeIndexes<0, Indexs...>
+{
+	typedef IndexTuple<Indexs...> type;
+};
+
+template<int I, typename IndexTuple, typename... Types>
+struct make_indexes_reverse_impl;
+
+//declare
+template<int I, int... Indexes, typename T, typename... Types>
+struct make_indexes_reverse_impl<I, IndexTuple<Indexes...>, T, Types...>
+{
+	using type = typename make_indexes_reverse_impl<I - 1, IndexTuple<Indexes..., I - 1>, Types...>::type;
+};
+
+//terminate
+template<int I, int... Indexes>
+struct make_indexes_reverse_impl<I, IndexTuple<Indexes...>>
+{
+	using type = IndexTuple<Indexes...>;
+};
+
+//type trait
+template<typename ... Types>
+struct make_reverse_indexes : make_indexes_reverse_impl<sizeof...(Types), IndexTuple<>, Types...>
+{};
+
+//反转
+template <class...Args, int...Indexes>
+auto reverse_impl(std::tuple<Args...>&& tup, IndexTuple<Indexes...>&&) ->
+decltype(std::make_tuple(std::get<Indexes>(std::forward<std::tuple<Args...>>(tup))...))
+{
+	return std::make_tuple(std::get<Indexes>(std::forward<std::tuple<Args...>>(tup))...);
+}
+
+template <class...Args>
+auto Reverse(std::tuple<Args...>&& tup) ->
+decltype(reverse_impl(std::forward<std::tuple<Args...>>(tup),
+	typename make_reverse_indexes<Args...>::type()))
+{
+	return reverse_impl(std::forward<std::tuple<Args...>>(tup),
+		typename make_reverse_indexes<Args...>::type());
+}
+
+template <class Tuple, std::size_t N>
+struct TuplePrinter
+{
+	static void print(const Tuple& t)
+	{
+		TuplePrinter<Tuple, N - 1>::print(t);
+		std::cout << ", " << std::get<N - 1>(t);
+	}
+};
+
+template <class Tuple>
+struct TuplePrinter<Tuple, 1>
+{
+	static void print(const Tuple& t)
+	{
+		std::cout << std::get<0>(t);
+	}
+};
+
+template <class...Args>
+void PrintTuple(const std::tuple<Args...>& t)
+{
+	std::cout << "(";
+	TuplePrinter<decltype(t), sizeof...(Args)>::print(t);
+	std::cout << ")\n";
+}
+```
+
+测试：
+
+```
+int main()
+{
+	auto tp1 = std::make_tuple<int, short, double, char>(1, 2, 2.5, 'a');
+	auto tp2 = Reverse(std::make_tuple<int, short, double, char>(1, 2, 2.5, 'a'));
+
+	PrintTuple(tp1);
+	PrintTuple(tp2);
+
+	return 0;
+}
+```
+
+## 应用于函数
+
+将 tuple 应用于函数是将 tuple 展开作为函数的参数。
+
+```
+template <int...>
+struct IndexTuple {};
+
+template <int N, int...Indexs>
+struct MakeIndexes : MakeIndexes<N - 1, N - 1, Indexs...> {};
+
+template <int...Indexs>
+struct MakeIndexes<0, Indexs...>
+{
+	typedef IndexTuple<Indexs...> type;
+};
+
+template <typename F, typename Tuple, int...Indexes>
+auto apply(F&& f, IndexTuple<Indexes...>&& in, Tuple&& tp) ->
+decltype(std::forward<F>(f)(std::get<Indexes>(tp)...))
+{
+	std::forward<F>(f)(std::get<Indexes>(tp)...);
+}
+```
+
+测试：
+
+```
+void TestF(int a, double b)
+{
+	std::cout << a + b << std::endl;
+}
+
+int main(void)
+{
+	apply(TestF, MakeIndexes<2>::type(), std::make_tuple(1, 2));  //输出 : 3
+	return 0;
+}
+```
+
+## tuple_zip
+
+合并 tuple 前一个 tuple 中的每个元素都为 key，后一个 tuple 中的每一个元素都是 value，组成一个 pair：
+
+```
+//将两个tuple合起来，前一个tuple中的每个元素为key，后一个tuple中的每个元素为value，组成一个pair集合
+namespace details
+{
+	template <int...>
+	struct IndexTuple {};
+
+	template <int N, int...Indexs>
+	struct MakeIndexes : MakeIndexes<N - 1, N - 1, Indexs...> {};
+
+	template <int...Indexs>
+	struct MakeIndexes<0, Indexs...>
+	{
+		typedef IndexTuple<Indexs...> type;
+	};
+
+	template<std::size_t N, typename T1, typename T2>
+	using pair_type = std::pair<typename std::tuple_element<N, T1>::type, typename std::tuple_element<N, T2>::type>;
+
+	template<std::size_t N, typename T1, typename T2>
+	pair_type<N, T1, T2> pair(const T1& tup1, const T2& tup2)
+	{
+		//
+		return std::make_pair(std::get<N>(tup1), std::get<N>(tup2));
+	}
+
+	template<int... Indexes, typename T1, typename T2>
+	auto pairs_helper(IndexTuple<Indexes...>, const T1& tup1, const T2& tup2) -> decltype(std::make_tuple(pair<Indexes>(tup1, tup2)...))
+	{
+		return std::make_tuple(pair<Indexes>(tup1, tup2)...);
+	}
+
+} // namespace details
+
+template<typename Tuple1, typename Tuple2>
+auto Zip(Tuple1 tup1, Tuple2 tup2) -> decltype(details::pairs_helper(
+	typename details::MakeIndexes<std::tuple_size<Tuple1>::value>::type(), tup1, tup2))
+{
+	static_assert(std::tuple_size<Tuple1>::value == std::tuple_size<Tuple2>::value,
+		"tuples should be the same size.");
+	return details::pairs_helper(typename
+		details::MakeIndexes<std::tuple_size<Tuple1>::value>::type(), tup1, tup2);
+}
+```
+
+测试：
+
+```
+int main()
+{
+	auto tp1 = std::make_tuple<int, short, double, char>(1, 2, 2.5, 'a');
+	auto tp2 = std::make_tuple<double, short, double, char>(1.5, 2, 2.5, 'z');
+	auto mypairs = Zip(tp1, tp2);
+
+	return 0;
+}
+```
+
