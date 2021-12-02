@@ -1486,3 +1486,90 @@ int main()
 }
 ```
 
+# ScopeGuard
+
+ScopeGuard 的作用是确保资源面对非正常返回(函数在中途返回，中途抛出异常)导致后面释放资源的代码没有被执行时能够自动释放资源，没有发生异常则正常结束。
+
+ScopeGuard 利用了局部变量析构函数来管理资源，利用了 RAII 机制。
+
+```
+#pragma once
+
+template <typename F>
+class ScopeGuard
+{
+public:
+	explicit ScopeGuard(F && f) : func_(std::move(f)), dismiss_(false) {}
+	explicit ScopeGuard(const F& f) : func_(f), dismiss_(false) {}
+
+	~ScopeGuard()
+	{
+		if (!dismiss_ && func_ != nullptr)
+			func_();
+	}
+
+	ScopeGuard(ScopeGuard && rhs) : func_(std::move(rhs.func_)), dismiss_(rhs.dismiss_)
+	{
+		rhs.Dismiss();
+	}
+
+	void dismiss()
+	{
+		dismiss_ = true;
+	}
+
+private:
+	F func_;
+	bool dismiss_;
+
+	ScopeGuard();
+	ScopeGuard(const ScopeGuard&);
+	ScopeGuard& operator= (const ScopeGuard&);
+};
+
+template <typename F>
+ScopeGuard<typename std::decay<F>::type> make_guard(F && f)
+{
+	return ScopeGuard<typename std::decay<F>::type>(std::forward<F>(f));
+}
+```
+
+测试：
+
+```
+int main()
+{
+	std::function < void()> f = []()
+	{ std::cout << "cleanup from abnormal exit" << std::endl; };
+
+	{
+		auto gd = make_guard(f);
+		//...
+		gd.dismiss();  //表明前面我是正常的清理了资源，属于正常退出的
+	}
+
+
+	try
+	{
+		auto gd = make_guard(f);
+		throw 1;
+	}
+	catch (...)
+	{
+		std::cout << "exception" << std::endl;
+	}
+
+
+	{
+		auto gd = make_guard(f);
+		return -1;  //非正常退出表示资源还没清理呢，，等着ScopeGuard自动清理
+				 //...
+	}
+
+	return 0;
+}
+```
+
+# tuple_helper
+
+std::tuple 具有很多编译期计算的特性，正是这些独特的特性使得它既能用于编译期计算，又可以用于运行期计算。
