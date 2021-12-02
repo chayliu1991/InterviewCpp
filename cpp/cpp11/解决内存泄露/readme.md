@@ -214,3 +214,185 @@ std::unique_ptr<int> otherPtr = myPtr; //@ 错误，不能复制
 std::unique_ptr<int> otherPtr2 = std::move(myPtr); //@ OK
 ```
 
+## make_unique
+
+实现 make_unique：
+
+```
+//@ 支持普通指针
+template <typename T, typename...Args>
+inline typename std::enable_if<!std::is_array<T>::value, std::unique_ptr<T>>::type
+make_unique(Args&&...args)
+{
+	return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+//@ 支持动态数组
+template <typename T>
+inline typename std::enable_if<std::is_array<T>::value && std::extent<T>::value == 0, std::unique_ptr<T>>::type
+make_unique(size_t size)
+{
+	typedef typename std::remove_extent<T>::type U;
+	return std::unique_ptr<T>(new U[size]());
+}
+
+//@ 过滤掉定长数组
+template <typename T, typename...Args>
+typename std::enable_if<std::extent<T>::value != 0, void>::type make_unique(Args&&...) = delete;
+
+
+std::unique_ptr<int> p = make_unique<int>(10); //@ OK
+std::unique_ptr<int[]> pArray1 = make_unique<int[]>(10); //@ OK
+std::unique_ptr<int[]> pArray2 = make_unique<int[10]>; //@ 错误，不能创建定长数组的 std::unique_ptr
+```
+
+## std::unique_ptr 与  std::shared_ptr
+
+- std::unique_ptr  具有独占性
+- std::unique_ptr  可以直接指向一个数组
+
+```
+std::unique_ptr<int[]> up(new int[3]{1,2,3}); //OK;
+std::cout << up[0] << std::endl;  //@ OK
+std::cout << up[1] << std::endl;  //@ OK
+std::cout << up[2] << std::endl;  //@ OK
+
+std::shared_ptr<int[]> sp(new int[10]); //@ 错误，不合法
+```
+
+- std::unique_ptr  指定删除器时需要确定删除器的类型
+
+```
+std::shared_ptr<int> ptr(new int(1), [](int *p) { delete p; }); //@ OK
+std::unique_ptr<int> ptr2(new int(1), [](int *p) { delete p; }); //@ 错误
+
+//@ lambda 没有捕捉变量时是正确的，因为没有捕获变量的 lambda 可以转换成函数指针，如果捕捉了变量则不可以
+std::unique_ptr<int, void(*)(int*)> ptr3(new int(1), [](int *p) { delete p; });
+
+//@ 如果希望 std::unique_ptr 的删除器支持 lambda 则应该写成：
+std::unique_ptr<int, std::function<void(int*)>> ptr4(new int(1), [&](int *p) { delete p; });
+
+//@ 使用仿函数作为删除器
+struct MyDeleter
+{
+    void operator()(int*p)
+    {
+        std::cout << "delete" << std::endl;
+        delete p;
+    }
+};
+std::unique_ptr<int, MyDeleter> ptr5(new int(1));
+```
+
+# std::weak_ptr 
+
+- 弱引用指针 std::weak_ptr 用来监视 std::shared_ptr 不会使引用计数增加，也不管理  std::shared_ptr 内部的指针，主要是监视 std::shared_ptr 的生命周期
+
+- std::weak_ptr 没有重载 * 和 ->，因为它不共享指针，不能操作资源
+- std::weak_ptr 可以用来解决 std::shared_ptr 的循环引用问题
+
+## 基本用法
+
+### use_count 
+
+获取当前观测 std::shared_ptr 的引用计数：
+
+```
+std::shared_ptr<int> sp(new int(10));
+std::weak_ptr<int> wp(sp);
+std::cout << wp.use_count() << std::endl;  //@ 1
+std::shared_ptr<int> sp2 = sp;
+std::cout << wp.use_count() << std::endl;  //@ 2
+```
+
+### expired
+
+判断所观测的 std::shared_ptr 是否释放：
+
+```
+std::shared_ptr<int> sp(new int(10));
+std::weak_ptr<int> wp(sp);
+if (wp.expired())
+	std::cout << "std::weak_ptr invalid in:" << __LINE__ << std::endl;
+
+sp.reset();
+if (wp.expired())
+	std::cout << "std::weak_ptr invalid in:" << __LINE__ << std::endl; //@ expired
+```
+
+### lock 
+
+获取监视的 std::shared_ptr：
+
+- 返回 std::shared_ptr
+- std::shared_ptr 的引用计数加1
+
+```
+std::weak_ptr<int> g_wptr;
+
+void func()
+{
+	if (g_wptr.expired())
+	{
+		std::cout << "g_wptr is expired" << std::endl;
+	}
+	else
+	{
+		std::cout << "use count before lock:" << g_wptr.use_count() << std::endl;
+		auto spt = g_wptr.lock();  //@ 返回一个 std::shared_ptr,引用计数加1
+		std::cout << "dereference:" << *spt << std::endl;
+		std::cout << "use count after lock:" << g_wptr.use_count() << std::endl;
+	}
+}
+
+int main()
+{
+	{
+		auto sp = std::make_shared<int>(42);
+		g_wptr = sp;
+		func();
+	}
+
+	func();
+
+	return 0;
+}
+```
+
+##  std::enable_from_this 原理
+
+本质上：
+
+- std::enable_shared_from_this 内部有一个  std::weak_ptr，这个 std::weak_ptr 用来观测 this 指针的 std::shared_ptr
+- 调用 shared_from_this  实际上内部调用了 std::weak_ptr 的 lock 方法返回一个 std::shared_ptr
+
+## 解决循环引用
+
+std::shared_ptr 的循环引用导致的内存泄露问题可以通过 std::weak_ptr 解决：
+
+```
+struct A;
+struct B;
+
+struct A {
+	std::weak_ptr<B> bPtr;
+	~A() { std::cout << "A is deleted!" << std::endl; }
+};
+
+struct B {
+	std::shared_ptr<A> aPtr;
+	//@ std::weak_ptr<A> aPtr;
+	~B() { std::cout << "B is deleted!" << std::endl; }
+};
+
+int main(void)
+{
+	std::shared_ptr<A> aP(new A);
+	std::shared_ptr<B> bP(new B);
+	aP->bPtr = bP;
+	bP->aPtr = aP;
+
+	return 0;
+}
+```
+
