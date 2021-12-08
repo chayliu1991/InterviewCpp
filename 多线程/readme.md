@@ -381,5 +381,242 @@ int main()
 }
 ```
 
-# 线程池
+# 半同步半异步线程池
+
+## 同步队列
+
+```
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <condition_variable>
+#include <list>
+
+
+template <typename T>
+class SyncQueue
+{
+public:
+	SyncQueue(size_t n) noexcept : capacity_(n) {}
+
+	void push(T&& t)
+	{
+		add(t);
+	}
+
+	void push(const T& t)
+	{
+		add(t);
+	}
+	
+	void pop(std::list<T> & list)
+	{
+		std::unique_lock<std::mutex> lock(mtx_);
+		cv_not_empty_.wait(lock, [this] {return need_stop_ || not_empty(); });
+		if (need_stop_)
+			return;
+		list = std::move(queue_);
+		cv_not_full_.notify_one();
+	}
+
+	void pop(T & t)
+	{
+		std::unique_lock<std::mutex> lock(mtx_);
+		cv_not_empty_.wait(lock, [this] {return need_stop_ || not_empty(); });
+		if (need_stop_)
+			return;
+		t = std::move(queue_.front());
+		queue_.pop_front();
+		cv_not_full_.notify_one();
+	}
+
+	void stop()
+	{
+		{
+			std::lock_guard<std::mutex> lock(mtx_);
+			need_stop_ = true;
+		}
+
+		cv_not_empty_.notify_all();
+		cv_not_full_.notify_all();
+	}
+
+	bool empty() const noexcept
+	{
+		std::lock_guard<std::mutex> lock(mtx_);
+		return queue_.empty();
+	}
+
+	bool full() const noexcept
+	{
+		std::lock_guard<std::mutex> lock(mtx_);
+		return queue_.size() >= capacity_;
+	}
+
+	size_t size() const noexcept
+	{
+		std::lock_guard<std::mutex> lock(mtx_);
+		return queue_.size();
+	}
+
+private:
+	bool not_full()
+	{
+		bool full = queue_.size() >= capacity_;
+		//if (full)
+		//	std::cout << "queue is full" << std::endl;
+		return !full;
+	}
+
+	bool not_empty()
+	{
+		bool empty = queue_.empty();
+		//if (empty)
+		//	std::cout << "queue is empty" << std::endl;
+		return !empty;
+	}
+
+	template <typename F>
+	void add(F&& f)
+	{
+		std::unique_lock<std::mutex> lock(mtx_);
+		cv_not_full_.wait(lock, [this] {return need_stop_ || not_full(); });
+		if (need_stop_)
+			return;
+
+		queue_.push_back(std::forward<F>(f));
+		cv_not_empty_.notify_one();
+	}
+
+private:
+	size_t capacity_ = 0;
+	bool need_stop_ = false;
+	std::list<T> queue_;
+	std::condition_variable cv_not_full_;
+	std::condition_variable cv_not_empty_;
+	std::mutex mtx_;
+};
+```
+
+## 线程池
+
+````
+#include <list>
+#include <thread>
+#include <functional>
+#include <memory>
+#include <atomic>
+#include <algorithm>
+
+const int kMaxTaskNum = 20;
+
+class ThreadPool
+{
+public:
+	using Task = std::function<void()>;
+
+	ThreadPool(int nums = std::thread::hardware_concurrency()) noexcept: queue_(kMaxTaskNum)
+	{
+		start(nums);
+	}
+
+	~ThreadPool()
+	{
+		stop();
+	}
+
+	void stop()
+	{
+		std::call_once(flag_, [this] {stop_threads(); });
+	}
+
+	void add_task(Task&& task)
+	{
+		queue_.push(std::forward<Task>(task));
+	}
+
+	void add_task(const Task& task)
+	{
+		queue_.push(task);
+	}
+
+private:
+	void start(int nums)
+	{
+		running_.store(true);
+		for (int i = 0; i < nums; i++)
+		{
+			threads_.emplace_back(std::make_shared<std::thread>(&ThreadPool::run_in_thread,this));
+		}
+	}
+
+	void run_in_thread()
+	{
+		while (running_)
+		{
+			std::list<Task> tasks;
+			queue_.pop(tasks);
+			{
+				for (const auto& task : tasks)
+				{
+					if (!running_)
+						return;
+					task();
+				}
+			}
+		}
+	}
+
+	void stop_threads()
+	{
+		queue_.stop();
+		running_ = false;
+
+		std::for_each(threads_.begin(), threads_.end(),std::mem_fn(&std::thread::join));
+		threads_.clear();
+	}
+
+private:
+	SyncQueue<Task> queue_;
+	std::atomic_bool running_;
+	std::once_flag flag_;
+	std::list<std::shared_ptr<std::thread>> threads_;
+};
+
+
+
+int main()
+{
+	ThreadPool pool;
+
+	std::thread thr1([&pool] {
+		for (int i = 0; i < 10; i++)
+		{
+			auto thr_id = std::this_thread::get_id();
+			pool.add_task([&thr_id] {
+				std::cout << "thread 1 id:" << thr_id << std::endl;
+			});
+		}
+	});
+
+	std::thread thr2([&pool] {
+		for (int i = 0; i < 10; i++)
+		{
+			auto thr_id = std::this_thread::get_id();
+			pool.add_task([&thr_id] {
+				std::cout << "thread 2 id:" << thr_id << std::endl;
+			});
+		}
+	});
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(200));
+	getchar();
+
+	pool.stop();
+	thr1.join();
+	thr2.join();
+
+	return 0;
+}
+````
 
