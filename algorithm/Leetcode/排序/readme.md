@@ -6,7 +6,7 @@
 - 然后再按此方法对这两部分数据分别进行快速排序，整个排序过程可以递归进行，以此达到整个数据变成有序序列
 
 ```
-int partition(std::vector<int>& nums, int left, int right)
+size_t partition(std::vector<int>& nums, size_t left, size_t right)
 {
 	int key = nums[left];
 	while (left < right)
@@ -24,12 +24,12 @@ int partition(std::vector<int>& nums, int left, int right)
 	return left;
 }
 
-void quick_sort(std::vector<int>& nums, int left, int right)
+void quick_sort(std::vector<int>& nums, size_t left, size_t right)
 {
 	if (left >= right)
 		return;
 
-	int pivot = 0;
+	size_t pivot = 0;
 	pivot = partition(nums, left, right);
 	quick_sort(nums, left, pivot - 1);
 	quick_sort(nums, pivot + 1, right);
@@ -78,9 +78,66 @@ void select_sort(std::vector<int>& nums)
 			if (nums[j] > nums[pos])
 				pos = j;
 		}
-		if(pos != i)
-			std::swap(nums[i],nums[pos]);
+		if (pos != i)
+			std::swap(nums[i], nums[pos]);
 	}
 }
 ```
+
+## 插入排序
+
+```
+void insert_sort(std::vector<int>& nums)
+{
+	for (size_t i = 1; i < nums.size(); i++)
+	{
+		size_t j = i;
+		while (j > 0 && nums[j] < nums[j - 1])
+		{
+			std::swap(nums[j], nums[j - 1]);
+			j--;
+		}
+	}
+}
+```
+
+## 归并排序
+
+归并排序是建立在归并操作上的一种有效的排序算法，该算法是采用分治法的一个非常典型的应用。
+
+```
+void merge(std::vector<int>& nums, size_t left, size_t mid, size_t right)
+{
+	size_t i = left, j = mid + 1, k = 0;
+	std::vector<int> vec(right - left + 1);
+
+	while (i <= mid && j <= right)
+	{
+		if (nums[i] <= nums[j])
+			vec[k++] = nums[i++];
+		else
+			vec[k++] = nums[j++];
+	}
+
+	while (i <= mid)
+		vec[k++] = nums[i++];
+	while (j <= right)
+		vec[k++] = nums[j++];
+	for (i = left, k = 0; i <= right;)
+		nums[i++] = vec[k++];
+}
+
+void merge_sort(std::vector<int>& nums, size_t left, size_t right)
+{
+	if (left >= right)
+		return;
+
+	size_t mid = left + ((right - left) >> 1);
+	merge_sort(nums, left, mid);
+	merge_sort(nums, mid + 1, right);
+	merge(nums, left, mid, right);
+}
+```
+
+## 希尔排序
 
