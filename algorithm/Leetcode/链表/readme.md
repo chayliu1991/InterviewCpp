@@ -35,6 +35,37 @@ public:
 };
 ```
 
+# [61. 旋转链表](https://leetcode-cn.com/problems/rotate-list/)
+
+```
+class Solution {
+public:
+    ListNode* rotateRight(ListNode* head, int k) {     
+		if(head == nullptr || head->next == nullptr || k == 0)
+			return head;		
+		int len = 0;
+		for(ListNode* p = head;p;p=p->next)
+			len++;
+		k %= len;
+		if(k == 0)
+			return head;
+		
+		ListNode* fast = head,* slow = head;
+		while(k--)
+			fast = fast->next;
+		while(fast->next)
+		{
+			slow = slow->next;
+			fast = fast->next;
+		}
+		fast->next = head;
+		ListNode* res = slow->next;
+		slow->next = nullptr;
+		return res;
+    }
+};
+```
+
 # [21. 合并两个有序链表](https://leetcode-cn.com/problems/merge-two-sorted-lists/)
 
 ```
@@ -183,6 +214,35 @@ public:
 };
 ```
 
+# [203. 移除链表元素](https://leetcode-cn.com/problems/remove-linked-list-elements/)
+
+```
+class Solution {
+public:
+    ListNode* removeElements(ListNode* head, int val) {
+        if(head == nullptr)
+            return head;
+
+        ListNode dummy(-1);
+        dummy.next = head;
+        ListNode* prev = &dummy,*curr = head;
+
+        while(curr)
+        {
+            if(curr->val == val)
+            {
+                prev->next = curr->next;
+                curr = prev->next;
+                continue;
+            }
+            prev = curr;
+            curr = curr->next;
+        }
+        return dummy.next;
+    }
+};
+```
+
 # [82. 删除排序链表中的重复元素 II](https://leetcode-cn.com/problems/remove-duplicates-from-sorted-list-ii/)
 
 ```
@@ -234,6 +294,36 @@ public:
 };
 ```
 
+# [19. 删除链表的倒数第 N 个结点](https://leetcode-cn.com/problems/remove-nth-node-from-end-of-list/)
+
+```
+class Solution {
+public:
+    ListNode* removeNthFromEnd(ListNode* head, int n) {
+        ListNode* fast = head;
+        while(n--)
+        {
+            if(fast == nullptr)
+                return nullptr;
+            fast = fast->next;
+        }
+
+        if(fast == nullptr)
+            return head->next;
+
+        ListNode* slow = head;
+        while(fast->next)
+        {
+            slow = slow->next;
+            fast = fast->next;
+        }
+
+        slow->next = slow->next->next;
+        return head;
+    }
+};
+```
+
 # [328. 奇偶链表](https://leetcode-cn.com/problems/odd-even-linked-list/)
 
 ```
@@ -264,35 +354,7 @@ public:
 };
 ```
 
-# [19. 删除链表的倒数第 N 个结点](https://leetcode-cn.com/problems/remove-nth-node-from-end-of-list/)
 
-```
-class Solution {
-public:
-    ListNode* removeNthFromEnd(ListNode* head, int n) {
-        ListNode* fast = head;
-        while(n--)
-        {
-            if(fast == nullptr)
-                return nullptr;
-            fast = fast->next;
-        }
-
-        if(fast == nullptr)
-            return head->next;
-
-        ListNode* slow = head;
-        while(fast->next)
-        {
-            slow = slow->next;
-            fast = fast->next;
-        }
-
-        slow->next = slow->next->next;
-        return head;
-    }
-};
-```
 
 # [148. 排序链表](https://leetcode-cn.com/problems/sort-list/)
 
