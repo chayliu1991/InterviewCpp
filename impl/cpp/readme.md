@@ -346,7 +346,7 @@ const int* const cp = &x;
 cp = &y  //@ 不允许
 ```
 
-顶层 const 与底层 const：
+顶层 const 与底层 const
 
 - 顶层 const：指 const 定义的变量本身是一个常量
 - 底层 const：指 const 定义的变量所指向的对象是一个常量
@@ -355,6 +355,17 @@ cp = &y  //@ 不允许
 const int i = 0; 　　 　　//@ 顶层 const，变量i就是常量
 const int  * a =  &i;    //@ 底层 const, a 所指向的对象 *a 是常量
 int * const b = &i;　　　 //@ 顶层 const, 变量 b 本身就是一个常量
+```
+
+- 执行对象拷贝时有限制，常量的底层 const 不能赋值给非常量的底层 const
+- const_cast 只能改变运算对象的底层const
+
+```
+int num = 3;
+const int * p = &num;
+int * p2 = p; //@ 不允许
+
+int *p3 = const_cast<int*>(p);  //@ OK
 ```
 
 ## 与类相关的 const 用法  
@@ -602,3 +613,134 @@ void func_maybe_noexcept() noexcept
 
 # lambda
 
+## lambda 的形式  
+
+C++ 也鼓励尽量“匿名”使用 lambda 表达式。也就是说，它不必显式赋值给一个有名字的变量，直接声明就能用：
+
+```
+std::vector<int> vec{1,2,3,4,8};
+std::cout << std::count_if(vec.begin(), vec.end(), [](int x) {return x > 3; })<< std::endl;
+```
+
+## lambda 的变量捕获  
+
+- [=] 表示按值捕获所有外部变量，表达式内部是值的拷贝，并且不能修改
+- [&] 是按引用捕获所有外部变量，内部以引用的方式使用，可以修改
+- 可以在 [] 里明确写出外部变量名，指定按值或者按引用捕获  
+
+## 泛型的 lambda  
+
+在 C++14 里，lambda 表达式又多了一项新本领，可以实现“泛型化”，相当于简化了的模板函数：
+
+```
+auto pow2 = [](const auto & x)
+{
+	return x * x;
+};
+```
+
+# 字符串
+
+string 是模板类特化形式的别名：
+
+```
+using string = std::basic_string<char>;
+```
+
+## 字面量后缀  
+
+C++11 为方便使用字符串，新增了一个字面量的后缀“s”，明确地表示它是 string 字符串类型，而不是 C 字符串，这就可以利用 auto 来自动类型推导：
+
+```
+auto str = "std string";  //@ str -> const char*
+
+using namespace std::literals::string_literals; //@ 需要打开命名空间
+auto str2 = "std string"s;  //@ str2 -> std::string
+```
+
+C++11 还为字面量增加了一个“原始字符串”的新表示形式，比原来的引号多了一个大写字母 R 和一对圆括号，就像下面这样：  
+
+```
+auto str1 = R"(\r\n\t\)"; //@ 原样输出 \r\n\t
+auto str2 = R"(\\\\\\\$)"; //@ 原样输出 \\\\\\\$
+```
+
+如果原始字符串中有引号或者圆括号，需要在圆括号的两边加上最多 16 个字符的特别“界定符”（delimiter），这样就能够保证不与字符串内容发生冲突：  
+
+```
+auto str = R"==("('xx')")=="; //@ 原样输出 "('xx')"
+```
+
+## 字符串转换函数  
+
+- stoi()、stol()、stoll() 等把字符串转换成整数
+- stof()、stod() 等把字符串转换成浮点数
+- to_string() 把整数、浮点数转换成字符串  
+
+## 字符串视图类  
+
+string 的成本问题。它确实有点“重”，大字符串的拷贝、修改代价很高，所以我们通常都尽量用 const string&，但有的时候还是无法避免。
+
+在 C++17 里，就有这么一个完美满足所有需求的东西，叫 string_view。顾名思义，它是一个字符串的视图，成本很低，内部只保存一个指针和长度，无论是拷贝，还是修改，都非常廉价。  
+
+C++11 里实现一个简化版本：
+
+```
+class string_view final
+{
+public:
+	using size_type = size_t;
+
+	string_view() = default;
+	~string_view() = default;
+
+	string_view(const std::string& str) noexcept: ptr_(str.data()), len_(str.length())
+	{
+	}
+
+	const char* data() const
+	{
+		return ptr_;
+	}
+
+	size_type size() const 
+	{
+		return len_;
+	}
+
+private:
+	const char* ptr_ = nullptr;
+	size_type len_ = 0;
+};
+```
+
+## 正则表达式  
+
+C++ 正则表达式主要有两个类：
+
+- regex：表示一个正则表达式，是 basic_regex 的特化形式
+- smatch：表示正则表达式的匹配结果，是 match_results 的特化形式  
+
+C++ 正则匹配有三个算法，注意它们都是“只读”的，不会变动原字符串：
+
+- regex_match()：完全匹配一个字符串
+- regex_search()：在字符串里查找一个正则匹配
+- regex_replace()：正则查找再做替换  
+
+在写正则的时候，记得最好要用“原始字符串” 。
+
+# 容器
+
+## 容器的通用特性  
+
+容器里存储的是元素的拷贝、副本，而不是引用。从这个基本特性可以得出一个推论，容器操作元素的很大一块成本就是值的拷贝。  
+
+一个解决办法是，尽量为元素实现转移构造和转移赋值函数，在加入容器的时候使用 std::move() 来“转移”，减少元素复制的成本：  
+
+```
+Point pt; //@ 拷贝代价很高的类
+vec.push_back(pt); //@ 拷贝对象，代价比较高
+vec.push_back(std::move(pt)); //@ 移动构造
+```
+
+C++11 为容器新增加的 emplace 操作函数，它可以“就地”构造元素，免去了构造后再拷贝、转移的成本，不但高效，而且用起来也很方便：  
