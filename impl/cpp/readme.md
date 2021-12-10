@@ -744,3 +744,31 @@ vec.push_back(std::move(pt)); //@ 移动构造
 ```
 
 C++11 为容器新增加的 emplace 操作函数，它可以“就地”构造元素，免去了构造后再拷贝、转移的成本，不但高效，而且用起来也很方便：  
+
+```
+struct Test final
+{
+	Test(double d, const std::string& s) : data(d), str(s)
+	{
+	}
+	double data;
+	std::string str;
+};
+
+std::vector<Test> vec;
+vec.emplace_back(10.8, "hello");
+vec.emplace_back(0.8, "hi");
+```
+
+## 容器的具体特性  
+
+C++ 里的容器很多，常见的一种分类是依据元素的访问方式，分成顺序容器、有序容器和无序容器三大类别。
+
+### 顺序容器
+
+顺序容器就是数据结构里的线性表，一共有 5 种：array、vector、deque、list、forward_list，按照存储结构，这 5 种容器又可以再细分成两组：
+
+- 连续存储的数组：array、vector 和 deque  
+- 指针结构的链表：list 和 forward_list  
+
+array 和 vector 直接对应 C 的内置数组，内存布局与 C 完全兼容，所以是开销最低、速度最快的容器。它们两个的区别在于容量能否动态增长。array 是静态数组，大小在初始化的时候就固定了，不能再容纳更多的元素。而 vector 是动态数组，虽然初始化的时候设定了大小，但可以在后面随需增长，容纳任意数量的元素。    
