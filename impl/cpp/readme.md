@@ -894,11 +894,120 @@ s.emplace(1, 2);
 s.emplace(4, 5);
 ```
 
+如果只想要单纯的集合、字典，没有排序需求，就应该用无序容 器，没有比较排序的成本，它的速度就会非常快。
 
+### 总结
 
+![](./img/std_container.png)
 
+# 算法
 
+## 迭代器
 
+C++ 里的迭代器也有很多种，比如输入迭代器、输出迭代器、双向迭代器、随机访问迭代器。
+
+容器一般都会提供 begin()、end() 成员函数，调用它们就可以得到表示两个端点的迭代 器，具体类型最好用 auto 自动推导，不要过分关心。也可以使用更加通用的全局函数 begin()、end()，虽然效果是一样的，但写起来比较方便，看起来也更清楚（另外还有 cbegin()、cend() 函数，返回的是常量迭代器）：
+
+```
+std::vector<int> vec{1,2,3,4,5,6};
+
+auto it1 = std::begin(vec);
+auto it2 = std::cbegin(vec);
+```
+
+迭代器和指针类似，也可以前进和后退，但你不能假设它一定支持“++”，“--”操作符， 最好也要用函数来操作，常用的有这么几个：
+
+- distance()，计算两个迭代器之间的距离
+- advance()，前进或者后退 N 步
+- next()/prev()，计算迭代器前后的某个位置
+
+## 常用算法
+
+### 手写循环的替代品
+
+```
+std::vector<int> vec{1,2,3,4,5,6};
+
+std::for_each(vec.begin(), vec.end(), [](const int& val) {std::cout << val << std::endl; });
+```
+
+### 排序算法
+
+C++ 准备了多种不同的排序算法：
+
+- 快速排序算法，应该用 sort，通常用它准没错
+- 要求排序后仍然保持元素的相对顺序，应该用 stable_sort，它是稳定的
+- 选出前几名（TopN），应该用 partial_sort
+- 选出前几名，但不要求再排出名次（BestN），应该用 nth_element
+- 中位数（Median）、百分位数（Percentile），应该用 nth_element
+- 按照某种规则把元素划分成两组，应该用 partition
+- 第一名和最后一名，应该用 min_element，max_element，minmax_element
+
+```
+std::vector<int> vec{ -1,9,3,0,1,2,5,4,7,8,3,6,3 };
+
+//@ 排序前3名
+std::partial_sort(vec.begin(),std::next(vec.begin(),3),vec.end());
+//@ 中位数
+auto mid_it = std::next(vec.begin(),vec.size()/2);
+std::nth_element(vec.begin(), mid_it, vec.end());
+auto mid = *mid_it;
+//@ 找出大于 6 的所有数字
+auto pos = std::partition(vec.begin(), vec.end(), [](const int& x) {
+return x > 6;
+});
+std::vector<int> bigeer_than_6(vec.begin(),pos);
+//@ 最大值和最小值
+auto value = std::minmax_element(vec.begin(),vec.end());
+auto min_val = *value.first;
+auto max_val = *value.second;
+```
+
+在使用这些排序算法时，还要注意一点，它们对迭代器要求比较高，通常都是随机访问迭代 器（minmax_element 除外），所以最好在顺序容器 array/vector 上调用。
+
+如果是 list 容器，应该调用成员函数 sort()，它对链表结构做了特别的优化。有序容器 set/map 本身就已经排好序了，直接对迭代器做运算就可以得到结果。而对无序容器，则 不要调用排序算法，原因你应该不难想到（散列表结构的特殊性质，导致迭代器不满足要 求、元素无法交换位置）。
+
+### 查找算法
+
+算法 binary_search，顾名思义，就是在已经排好序的区间里执行二分查找。但糟糕的是， 它只返回一个 bool 值，告知元素是否存在，而更多的时候，我们是想定位到那个元素，所 以 binary_search 几乎没什么用。
+
+```
+std::vector<int> vec{ -1,9,3,0,1,2,5,4,7,8,3,6,3 };
+std::sort(vec.begin(),vec.end());
+bool found = std::binary_search(vec.begin(),vec.end(),9);
+```
+
+想要在已序容器上执行二分查找，要用到一个名字比较怪的算法：lower_bound，它返回 第一个“大于或等于”值的位置，lower_bound 的返回值是一个迭代器，所以就要做一点判断工作，才能知道是否真的找到 了。判断的条件有两个，一个是迭代器是否有效，另一个是迭代器的值是不是要找的值。
+
+注意 lower_bound 的查找条件是“大于等于”，而不是“等于”，所以它的真正含义 是“大于等于值的第一个位置”。相应的也就有“大于等于值的最后一个位置”，算法叫 upper_bound，返回的是第一个“大于”值的元素。
+
+它俩的返回值构成一个区间，这个区间往前就是所有比被查找值小的元素，往后就是所有比 被查找值大的元素，可以写成一个简单的不等式：
+
+```
+begin < x <= lower_bound < upper_bound < end
+```
+
+对于有序容器 set/map，就不需要调用这三个算法了，它们有等价的成员函数 find/lower_bound/upper_bound，效果是一样的。
+
+```
+std::multiset<int> s{3,5,1,2,3,3,6,6,7,8};
+auto pos = s.find(8);
+
+auto lower_pos = s.lower_bound(6);
+auto upper_pos = s.upper_bound(6);
+
+std::for_each(lower_pos, upper_pos, [](const int x) {std::cout << x << std::endl; });
+```
+
+除了 binary_search、lower_bound 和 upper_bound，标准库里还有一些查找算法可以 用于未排序的容器，虽然肯定没有排序后的二分查找速度快，但也正因为不需要排序，所以 适应范围更广。这些算法以 find 和 search 命名，其中用于查找区间的 find_first_of/find_end。
+
+```
+std::vector<int> vec{ -1,9,3,0,1,2,5,4,7,8,3,6,3 };
+auto pos = std::find_if(vec.begin(), vec.end(), [](const int& x) {return x % 2 == 0; });
+
+std::array<int, 2> arr{ 7, 8 };
+pos = std::find_first_of(vec.begin(), vec.end(), arr.begin(), arr.end());
+```
 
 
 
