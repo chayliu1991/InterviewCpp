@@ -773,5 +773,140 @@ C++ 里的容器很多，常见的一种分类是依据元素的访问方式，�
 
 array 和 vector 直接对应 C 的内置数组，内存布局与 C 完全兼容，所以是开销最低、速度最快的容器。它们两个的区别在于容量能否动态增长。array 是静态数组，大小在初始化的时候就固定了，不能再容纳更多的元素。而 vector 是动态数组，可以容纳任意数量的元素。    
 
-deque 也是一种可以动态增长的数组，它和 vector 的区别是，它可以在两端高效地插入删除元素，这也是它的名字 double-end queue 的来历，而 vector 则只能用 在末端追加元素。  
+deque 也是一种可以动态增长的数组，它和 vector 的区别是，它可以在两端高效地插入删除元素，这也是它的名字 double-end queue 的来历，而 vector 则只能 在末端追加元素。  
+
+vector 和 deque 里的元素因为是连续存储的，所以在中间的插入删除效率就很低，而 list  和 forward_list 是链表结构，插入删除操作只需要调整指针，所以在任意位置的操作都很 高效。
+
+链表的缺点是查找效率低，只能沿着指针顺序访问，这方面不如 vector 随机访问的效率 高。list 是双向链表，可以向前或者向后遍历，而 forward_list，顾名思义，是单向链表， 只能向前遍历，查找效率就更低了。
+
+链表结构比起数组结构还有一个缺点，就是存储成本略高，因为必须要为每个元素附加一个 或者两个的指针，指向链表的前后节点。
+
+vector/deque 和 list/forward_list 都可以动态增长来容纳更多的元素，但它们的内部扩容 机制却是不一样的。
+
+当 vector 的容量到达上限的时候（capacity），它会再分配一块两倍大小的新内存，然后 把旧元素拷贝或者移动过去。这个操作的成本是非常大的，所以，你在使用 vector 的时候 最好能够“预估”容量，使用 reserve 提前分配足够的空间，减少动态扩容的拷贝代价。
+
+vector 的做法太“激进”，而 deque、list 的的扩容策略就“保守”多了，只会按照固定 的“步长”（例如 N 个字节、一个节点）去增加容量。但在短时间内插入大量数据的时候 就会频繁分配内存，效果反而不如 vector 一次分配来得好。
+
+如果没有什么特殊需求，首选的容器就是 array 和 vector，它们的速度最 快、开销最低，数组的形式也令它们最容易使用，搭配算法也可以实现快速的排序和查找。 剩下的 deque、list 和 forward_list 则适合对插入删除性能比较敏感的场合，如果还很在意空间开销，那就只能选择非链表的 deque 了。
+
+![](./img/sequence_container.png)
+
+### 有序容器
+
+顺序容器的特点是，元素的次序是由它插入的次序而决定的，访问元素也就按照最初插入的 顺序。而有序容器则不同，它的元素在插入容器后就被按照某种规则自动排序，所以是“有 序”的。
+
+C++ 的有序容器使用的是树结构，通常是红黑树——有着最好查找性能的二叉树。标准库里一共有四种有序容器：set/multiset 和 map/multimap。set 是集合，map 是关 联数组。有 multi 前缀的容器表示可以容纳重复的 key，内部结构与无前缀的相同。
+
+在定义容器的时候必须要指定 key 的 比较函数。只不过这个函数通常是默认的 less，表示小于关系，不用特意写出来：
+
+```
+template<class Key,class Compare = std::less<Key>>
+class set;
+
+template<class Key,class T,class Compare = std::less<Key>>
+class map;
+```
+
+但很多自定义类型没有默认的比较函数，要作为容器的 key 就有点麻烦。解决这个问题有两种办法：一个是重载“<”，另一个是自定义模板参数。
+
+```
+class Edge final
+{
+public:
+	Edge(int u, int v) : u_(u), v_(v)
+	{
+	}
+
+	bool operator < (const Edge& edge) const noexcept
+	{
+		return this->u_ < edge.u_;
+	}
+
+private:
+	int u_;
+	int v_;
+};
+
+//@ 或者使用全局定义
+bool operator < (const Edge& lhs, const Edge& rhs)
+{
+	return lhs.u_ < rhs.u_;
+}
+
+std::set<Edge> edge_set;
+edge_set.emplace(1, 2);
+edge_set.emplace(3, 4);
+```
+
+另一种方式是编写专门的函数对象或者 lambda 表达式，然后在容器的模板参数里指定。 这种方式更灵活，而且可以实现任意的排序准则：
+
+```
+struct EdgeComp
+{
+	bool operator()(const Edge& lhs, const Edge& rhs)
+	{
+		return lhs.u_ < rhs.v_;
+	}
+};
+
+std::set<Edge, EdgeComp> edge_set;
+edge_set.emplace(1, 2);
+edge_set.emplace(3, 4);
+```
+
+因为有序容器在插入的时候会自动排序，所以就有隐含的插入排 序成本，当数据量很大的时候，内部的位置查找、树旋转成本可能会比较高。
+
+如果你需要实时插入排序，那么选择 set/map 是没问题的。如果是非实时，那么最 好还是用 vector，全部数据插入完成后再一次性排序，效果肯定会更好。
+
+### 无序容器
+
+无序容器也有四种，名字里也有 set 和 map，只是加上了 unordered（无序）前缀，分别 是 unordered_set/unordered_multiset、unordered_map/unordered_multimap。
+
+无序容器同样也是集合和关联数组，用法上与有序容器几乎是一样的，区别在于内部数据结 构：它不是红黑树，而是散列表（也叫哈希表，hash table）。
+
+因为它采用散列表存储数据，元素的位置取决于计算的散列值，没有规律可言，所以就 是“无序”的，你也可以把它理解为“乱序”容器。
+
+无序容器虽然不要求顺序，但是对 key 的要求反而比有序容器更“苛刻”一些：
+
+```
+/*
+ - key 类型
+ - 元素类型
+ - 散列值的函数对象
+ - 相等比较函数
+*/
+template<class Key,class T,class Hash = std::hash<Key>,class KeyEqual = std::equal_to<Key>>
+class unordered_map;
+```
+
+它要求 key 具备两个条件，一是可以计算 hash 值，二是能够执行相等比较操作。第一个 是因为散列表的要求，只有计算 hash 值才能放入散列表，第二个则是因为 hash 值可能会 冲突，所以当 hash 值相同时，就要比较真正的 key 值。要把自定义类型作为 key 放入无序容器，必须要实现这两个函数。
+
+“==”函数比较简单，可以通过重载操作符来实现，或者定义函数对象或者 lambda 表达式。散列函数就略麻烦一点，你可以用函数对象或者 lambda 表达式实现，内部最好调用标准 的 std::hash 函数对象，而不要自己直接计算，否则很容易造成 hash 冲突。
+
+```
+auto edge_hash = [](const Edge& rhs)
+{
+	return std::hash<int>()(rhs.u_);
+};
+
+std::unordered_set<Edge, decltype(edge_hash)> s(10, edge_hash);
+s.emplace(1, 2);
+s.emplace(4, 5);
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
