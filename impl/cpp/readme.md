@@ -278,6 +278,160 @@ struct Test final
 };
 ```
 
+# 右值和移动
+
+C++ 中的值类别：
+
+- lvalue 是通常可以放在等号左边的表达式，左值
+- rvalue 是通常只能放在等号右边的表达式，右值
+- glvalue 是 generalized lvalue，广义左值
+- xvalue 是 expiring lvalue，将亡值
+- prvalue 是 pure rvalue，纯右值  
+
+![](./img/value_categories.png)
+
+![](./img/value_categories2.png)
+
+左值 lvalue 是有标识符、可以取地址的表达式，最常见的情况有：  
+
+- 变量、函数或数据成员的名字  
+- 返回左值引用的表达式，如 ++x、x = 1、cout << ' '  
+- 字符串字面量如 "hello world"  
+
+在函数调用时，左值可以绑定到左值引用的参数，如 T&。一个常量只能绑定到常左值引用，如 const T&。  
+
+纯右值 prvalue 是没有标识符、不可以取地址的表达式，一般也称之为“临时对象”。最常见的情况有：  
+
+- 返回非引用类型的表达式，如 x++、x + 1
+- 除字符串字面量之外的字面量，如 42、true  
+
+C++11 开始，C++ 语言里多了一种引用类型——右值引用。右值引用的形式是 T&&，比左值引用多一个 & 符号。  
+
+## 生命周期和表达式类型  
+
+C++ 的规则是：一个临时对象会在包含这个临时对象的完整表达式估值完成后、按生成顺序的逆序被销毁，除非有生命周期延长发生。  
+
+```
+struct Shape
+{
+	virtual ~Shape() {}
+};
+
+struct Circle final : Shape
+{
+	Circle()
+	{
+		std::cout << "Circle()" << std::endl;
+	}
+
+	~Circle()
+	{
+		std::cout << "~Circle()" << std::endl;
+	}
+};
+
+struct Triangle final : Shape
+{
+	Triangle()
+	{
+		std::cout << "Triangle()" << std::endl;
+	}
+
+	~Triangle()
+	{
+		std::cout << "~Triangle()" << std::endl;
+	}
+};
+
+struct Result
+{
+	Result()
+	{
+		std::cout << "Result()" << std::endl;
+	}
+
+	~Result()
+	{
+		std::cout << "~Result()" << std::endl;
+	}
+};
+
+Result process_shape(const Shape& shape1, const Shape& shape2)
+{
+	std::cout << "process_shape" << std::endl;
+	return Result();
+}
+
+int main()
+{
+	process_shape(Circle(),Triangle());
+	return 0;
+}
+```
+
+为了方便对临时对象的使用，C++ 对临时对象有特殊的生命周期延长规则。这条规则是：如果一个 prvalue 被绑定到一个引用上，它的生命周期则会延长到跟这个引用变量一样长。    
+
+```
+Result&& r= process_shape(Circle(),Triangle());
+```
+
+需要万分注意的是，这条生命期延长规则只对 prvalue 有效，而对 xvalue 无效。如果由于某种原因，prvalue 在绑定到引用以前已经变成了 xvalue，那生命期就不会延长。  
+
+```
+Result&& r = std::move(process_shape(Circle(), Triangle()));
+//@ r 指向的对象已经不存在了，对 r 的解引用是一个未定义行为，由于 r 指向的是栈空间，通常不会立即导致程序崩溃，而会在某些复杂的组合条件下才会引致问题
+```
+
+## 移动的意义  
+
+实现移动的意义是减少运行的开销，在引用计数指针的场景下，这个开销并不大。在使用容器类的情况下，移动更有意义。  
+
+ ```
+ std::string name = "jim";
+ std::string result = std::string("Hello, ") + name + ".";
+ ```
+
+在 C++11 之前的年代里，这种写法是绝对不推荐的。因为它会引入很多额外开销，为了生成临时对象，会多次调用复制构造函数和析构函数，因此比较好的写法：
+
+```
+std::string result("Hello, ");  //@ 调用一次构造函数
+result += name; //@ 调用一次 operator +
+result += ".";	//@ 调用一次 operator +
+```
+
+从 C++11 开始，就需要了，因为引入了移动构造，就不需要反复调用复制构造函数和析构函数。可以直接写成：
+
+```
+std::string result = std::string("Hello, ") + name + ".";
+```
+
+一句话总结，移动语义使得在 C++ 里返回大对象（如容器）的函数和运算符成为现实，因而可以提高代码的简洁性和可读性，提高程序员的生产率。所有的现代 C++ 的标准容器都针对移动进行了优化。  
+
+## 如何实现移动  
+
+设计的对象支持移动的话，通常需要下面几步：  
+
+- 应该有分开的拷贝构造和移动构造函数（除非只打算支持移动，不支持拷贝——如：unique_ptr）
+- 对象应该有 swap 成员函数，支持和另外一个对象快速交换成员  
+- 对象的名空间下，应当有一个全局的 swap 函数，调用成员函数 swap 来实现交换。支持这种用法会方便在其他对象里包含你的对象，并快速实现它们的 swap 函数
+- 实现通用的 operator=  
+- 上面各个函数如果不抛异常的话，应当标为 noexcept。这对移动构造函数尤为重要  
+
+## 不要返回本地变量的引用  
+
+在函数里返回一个本地对象的引用。由于在函数结束时本地对象即被销毁，返回一个指向本地对象的引用属于未定义行为。理论上来说，程序出任何
+奇怪的行为都是正常的。  
+
+在 C++11 之前，返回一个本地对象意味着这个对象会被拷贝，除非编译器发现可以做返回值优化（named return value optimization，或 NRVO），能把对象直接构造到调用者的栈上。从 C++11 开始，返回值优化仍可以发生，但在没有返回值优化的情况下，编译器将试图把本地对象移动出去，而不是拷贝出去。这一行为不需要用 std::move 进行干预——使用std::move 对于移动行为没有帮助，反而会影响返回值优化。    
+
+## 引用坍缩和完美转发  
+
+引用坍缩（又称“引用折叠”）对于一个实际的类型 T，它的左值引用是 T&，右值引用是 T&&。    
+
+实上，很多标准库里的函数，连目标的参数类型都不知道，但我们仍然需要能够保持参数的值类型：左值的仍然是左值，右值的仍然是右值。这个功能在 C++ 标准库中已经提供了，叫 std::forward。它和 std::move 一样都是利用引用坍缩机制来实现。  
+
+T&& 的作用主要是保持值类别进行转发，它有个名字就叫“转发引用”。因为既可以是左值引用，也可以是右值引用，它也曾经被叫做“万能引用”。  
+
 # const/volatile/mutable
 
 ## const  和 volatile
@@ -497,6 +651,273 @@ shared_ptr  缺陷：
 
 - 引用计数的存储和管理都是成本
 - 导致循环引用 
+
+智能指针的简单实现：
+
+![](./img/smart_ptr.png)
+
+```
+//@ 引用计数类
+class SharedCount
+{
+private:
+	long count_;
+
+public:
+	SharedCount() noexcept : count_(1)
+	{
+	}
+
+	void add_count() noexcept
+	{
+		++count_;
+	}
+
+	long reduce_count() noexcept
+	{
+		--count_;
+		return count_;
+	}
+
+	long get_count() const noexcept
+	{
+		return count_;
+	}
+};
+
+//@ 智能指针类
+template <typename T>
+class SharedPtr
+{
+private:
+	T* ptr_;
+	SharedCount* shared_count_;
+
+public:
+	//@ 声明友元，访问其他实体类型的引用变量
+	template <typename U>
+	friend class SharedPtr;
+
+	//@ 构造函数
+	explicit SharedPtr(T* ptr = nullptr) : ptr_(ptr)
+	{
+		if (ptr)
+		{
+			shared_count_ = new SharedCount();
+		}
+	}
+
+	//@ 析构函数
+	~SharedPtr()
+	{
+		if (ptr_ && shared_count_->reduce_count() == 0)
+		{
+			delete ptr_;
+			delete shared_count_;
+		}
+	}
+
+	//@ 拷贝构造函数
+	SharedPtr(const SharedPtr& other) noexcept
+	{
+		ptr_ = other.ptr_;
+		if (ptr_)
+		{
+			//@ 如果指针存在，other的引用计数器+1
+			other.shared_count_->add_count();
+			shared_count_ = other.shared_count_;
+		}
+	}
+
+	template <typename U>
+	SharedPtr(const SharedPtr<U>& other) noexcept
+	{
+		ptr_ = other.ptr_;
+		if (ptr_)
+		{
+			//@ 如果指针存在，other的引用计数器+1
+			other.shared_count_->add_count();
+			shared_count_ = other.shared_count_;
+		}
+	}
+
+	//@ 移动构造函数
+	template <typename U>
+	SharedPtr(SharedPtr<U>&& other) noexcept
+	{
+		ptr_ = other.ptr_;
+		if (ptr_)
+		{
+			shared_count_ = other.shared_count_;
+			other.ptr_ = nullptr;
+		}
+	}
+
+	template <typename U>
+	SharedPtr(const SharedPtr<U>& other, T* ptr) noexcept
+	{
+		ptr_ = ptr;
+		if (ptr_)
+		{
+			other.shared_count_->add_count();
+			shared_count_ = other.shared_count_;
+		}
+	}
+
+	//@ swap函数
+	void swap(SharedPtr& rhs) noexcept
+	{
+		using std::swap;
+		swap(ptr_, rhs.ptr_);
+		swap(shared_count_, rhs.shared_count_);
+	}
+
+	//@ 重载赋值运算符(通过交换实现，形参本来就是传值，不影响原来传入的rhs)
+	SharedPtr& operator = (SharedPtr rhs) noexcept
+	{
+		rhs.swap(*this);
+		return *this;
+	}
+
+	//@ 返回智能指针ptr_成员变量
+	T* get() const noexcept
+	{
+		return ptr_;
+	}
+
+	//@ 返回引用计数
+	long use_count() const noexcept
+	{
+		if (ptr_)
+		{
+			return shared_count_->get_count();
+		}
+		else
+		{
+			return 0;
+		}
+	}
+
+	//@ * 解引用
+	T& operator*() const noexcept
+	{
+		return *ptr_;
+	}
+	//@ -> 箭头(返回指针)
+	T* operator->() const noexcept
+	{
+		return ptr_;
+	}
+	//@ bool()
+	operator bool() const noexcept
+	{
+		return ptr_;
+	}
+};
+
+//@ swap全局函数
+template <typename T>
+void swap(SharedPtr<T>& lhs, SharedPtr<T>& rhs) noexcept
+{
+	lhs.swap(rhs);
+}
+
+//@ C++强制类型转换
+//@ static_cast
+template <typename T, typename U>
+SharedPtr<T> static_pointer_cast(const SharedPtr<U>& other) noexcept
+{
+	T* ptr = static_cast<T*> (other.get());
+	return SharedPtr<T>(other, ptr);
+}
+//@ reinterpret_cast
+template <typename T, typename U>
+SharedPtr<T> reinterpret_pointer_cast(const SharedPtr<U>& other) noexcept
+{
+	T* ptr = reinterpret_cast<T*> (other.get());
+	return SharedPtr<T>(other, ptr);
+}
+//@ const_cast
+template <typename T, typename U>
+SharedPtr<T> const_pointer_cast(const SharedPtr<U>& other) noexcept
+{
+	T* ptr = const_cast<T*> (other.get());
+	return SharedPtr<T>(other, ptr);
+}
+//@ dynamic_cast
+template <typename T, typename U>
+SharedPtr<T> dynamic_pointer(const SharedPtr<U>& other) noexcept
+{
+	T* ptr = dynamic_cast<T*> (other.get());
+	return SharedPtr<T>(other, ptr);
+}
+
+//@ 工厂函数
+template <typename T, typename...Args>
+SharedPtr<T> make_sharedptr(Args...args)
+{
+	return SharedPtr<T>(new T(std::forward<Args>(args)...));
+}
+
+
+//@ 测试
+struct Base
+{
+	Base(int i) :a(i) {}
+
+	virtual double get_val() = 0;
+
+	double get_a()
+	{
+		return a;
+	}
+
+public:
+	int a;
+};
+
+struct Derived final : Base
+{
+	Derived(int i, double d) : Base(i), b(d)
+	{
+	}
+
+	virtual double get_val() override
+	{
+		return b * a;
+	}
+
+	double get_b()
+	{
+		return b;
+	}
+
+public:
+	double b;
+};
+
+int main()
+{
+	SharedPtr<Base> pb = make_sharedptr<Derived>(10,3.12);
+	std::cout << pb.use_count() << std::endl;
+	SharedPtr<Base> pb2 = pb;
+	std::cout << pb.use_count() << std::endl;
+
+	std::cout << pb->get_a() << std::endl;
+	std::cout << static_pointer_cast<Derived>(pb)->get_b() << std::endl;
+	std::cout << dynamic_pointer_cast<Derived>(pb)->get_val() << std::endl;
+
+
+	SharedPtr<Base> pb3 = std::move(pb);
+	std::cout << pb.use_count() << std::endl;
+	std::cout << pb2.use_count() << std::endl;
+	std::cout << pb3.use_count() << std::endl;
+
+	return 0;
+}
+```
+
+
 
 ## weak_ptr  
 
