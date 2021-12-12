@@ -54,6 +54,68 @@ struct Test{
 };
 ```
 
+### 编译期类型推导  
+
+C++ 标准库在 `<type_traits>` 头文件里定义了很多工具类模板，用来提取某个类型在某方面的特点。这些特点既是类型，又是常值。 为了方便地在值和类型之间转换，标准库定义了一些经常需要用到的工具类。为了方便使用，针对布尔值有两个额外的类型定义：    
+
+```
+typedef std::integral_constant<bool, true> true_type;
+typedef std::integral_constant<bool, false> false_type;
+```
+
+这两个标准类型 true_type 和 false_type 经常可以在函数重载中见到：
+
+```
+template <typename T>
+class SomeContainer
+{
+public:
+	static void destroy(T *ptr)
+	{
+		_destroy(ptr, std::is_trivially_destructible<T>());
+	}
+
+private:
+	static void _destroy(T* ptr,std::true_type)
+	{}
+
+	static void _destroy(T* ptr, std::false_type)
+	{
+		ptr->~T();
+	}
+};
+```
+
+除了得到布尔值和相对应的类型的 trait 模板，我们还有另外一些模板，可以用来做一些类型的转换。以一个常见的模板 remove_const 为例：
+
+```
+template <typename T>
+struct remove_const {
+	typedef T type;
+};
+
+template <typename T>
+struct remove_const <const T>{
+	typedef T type;
+};
+```
+
+如果我们对 const string& 应用 remove_const，就会得到 string&，即，remove_const<const string&>::type 等价于 string&。  
+
+如果对 const char* 应用 remove_const 的话，结果还是 const char*。原因是，const char* 是指向 const char 的指针，而不是指向char 的 const 指针。如果我们对 char * const 应用 remove_const 的话，还是可以得到 char* 的。  
+
+如果你觉得写 is_trivially_destructible<T>::value 和 remove_const<T>::type 非常啰嗦的话，在当前的 C++ 标准里，前者有增加 _v 的编译时常量，后者有增加 _t 的类型别名：    
+
+```
+template <class T>
+inline constexpr bool is_trivially_destructible_v = std::is_trivially_destructible<T>::value;
+
+template <class T>
+using remove_const_t = typename remove_const<T>::type;
+```
+
+
+
 ## C++ 语言的编程范式：
 
 ![](./img/cpp_program_method.png)
