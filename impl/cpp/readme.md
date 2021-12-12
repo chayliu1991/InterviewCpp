@@ -64,6 +64,11 @@ struct Test{
 
 注意：尽量少用继承和虚函数，减少继承的层次，一般不应该超过三层。  
 
+override 显式声明了成员函数是一个虚函数且覆盖了基类中的该函数。如果有override 声明的函数不是虚函数，或基类中不存在这个虚函数，编译器会报告错误。这个说明符的主要作用有两个：  
+
+- 给开发人员更明确的提示，这个函数覆写了基类的成员函数
+- 让编译器进行额外的检查，防止程序员由于拼写错误或代码改动没有让基类和派生类中的成员函数名称完全一致
+
 "final" 标识符可以用于禁止继承：
 
 ```
@@ -74,11 +79,21 @@ struct Implement final : public Interface{
 };
 ```
 
+final 还有一个作用就是声明了成员函数是一个虚函数，且该虚函数不可在派生类中被覆盖。如果有一点没有得到满足的话，编译器就会报错。  
+
 现代 C++ 中一共有 6 个基本函数：
 
 - 默认构造函数，拷贝构造函数，移动构造函数
 - 赋值函数，移动赋值函数
 - 析构函数
+
+但是需要注意：
+
+- 没有初始化的非静态 const 数据成员和引用类型数据成员会导致默认提供的默认构造函数被删除
+- 非静态的 const 数据成员和引用类型数据成员会导致默认提供的拷贝构造函数、拷贝赋值函数、移动构造函数和移动赋值函数被删除  
+- 用户如果自己声明了一个移动构造函数或移动赋值函数，则默认提供的拷贝构造函数和拷贝赋值函数被删除  
+- 用户如果没有自己声明拷贝构造函数、拷贝赋值函数、移动赋值函数和析构函数，编译器会隐式声明一个移动构造函数  
+- 用户如果没有自己声明拷贝构造函数、拷贝赋值函数、移动构造函数和析构函数，编译器会隐式声明一个移动赋值函数  
 
 "default" 可以强制编译器提供某个函数的默认实现，"delete" 可以强制编译器删除某个函数的实现：
 
@@ -1068,7 +1083,7 @@ string 是模板类特化形式的别名：
 using string = std::basic_string<char>;
 ```
 
-## 字面量后缀  
+## 字面量
 
 C++11 为方便使用字符串，新增了一个字面量的后缀“s”，明确地表示它是 string 字符串类型，而不是 C 字符串，这就可以利用 auto 来自动类型推导：
 
@@ -1091,6 +1106,95 @@ auto str2 = R"(\\\\\\\$)"; //@ 原样输出 \\\\\\\$
 ```
 auto str = R"==("('xx')")=="; //@ 原样输出 "('xx')"
 ```
+
+### 自定义字面量  
+
+C++11 引入了自定义字面量，可以使用 operator"" 后缀 来将用户提供的字面量转换成实际的类型。C++14 则在标准库中加入了不少标准字面量。下面这个程序展示了它们的用法：    
+
+```
+std::this_thread::sleep_for(500ms);
+```
+
+要在自己的类里支持字面量也相当容易，唯一的限制是非标准的字面量后缀必须以下划线 _ 打头：
+
+```
+struct Length
+{
+	double value;
+
+	enum unit
+	{
+		metre,
+		kilometre,
+		millimetre,
+		centmetre,
+		inch,
+		foot,
+		yard,
+		mile,
+	};
+
+	static constexpr double factors[] =	{
+		1.0,1000.0,1e-3,1e-2,0.0254,0.3084,0.9144,1609.344	};
+	
+	explicit Length(double v, unit u = metre)
+	{
+		value = v* factors[u];
+	}
+};
+
+Length operator +(Length& lhs, Length& rhs)
+{
+	return Length(lhs.value + rhs.value);
+}
+
+Length operator"" _m(long double v)
+{
+	return Length(v, Length::metre);
+}
+
+Length operator"" _cm(long double v)
+{
+	return Length(v, Length::centmetre);
+}
+
+
+int main()
+{
+	auto v = 1.0_m + 10.0_cm;
+	std::cout << v.value << std::endl;
+}
+```
+
+ ### 二进制字面量  
+
+从 C++14 开始，二进制也有了直接的字面量：  
+
+```
+unsigned mask = 0b111000000;
+```
+
+但是 I/O streams 里只有 dec、hex、oct 三个操纵器（manipulator），而没有 bin，因而输出一个二进制数不能像十进制、十六进制、八进制那么直接。一个间接
+方式是使用 bitset，但调用者需要手工指定二进制位数：  
+
+```
+std::cout << std::bitset<9>(mask) << std::endl;
+```
+
+### 数字分隔符  
+
+C++14 开始，允许在数字型字面量中任意添加 ' 来使其更可读。  
+
+```
+unsigned mask = 0b111'000'000;
+long r_earth_equatorial = 6'378'137;
+double pi = 3.14159'26535'89793;
+const unsigned magic = 0x44'42'47'4E;
+```
+
+
+
+ 
 
 ## 字符串转换函数  
 
@@ -1212,6 +1316,22 @@ vector 的做法太“激进”，而 deque、list 的的扩容策略就“保�
 
 ![](./img/sequence_container.png)
 
+std::vector 的内存布局：
+
+![](./img/vector_mem.png)
+
+std::deque 的内存布局：
+
+![](./img/deque_mem.png)
+
+std::list 的内存布局：
+
+![](./img/list_mem.png)
+
+std::forward_list 的内存布局：
+
+![](./img/forward_list_mem.png)
+
 ### 有序容器
 
 顺序容器的特点是，元素的次序是由它插入的次序而决定的，访问元素也就按照最初插入的 顺序。而有序容器则不同，它的元素在插入容器后就被按照某种规则自动排序，所以是“有 序”的。
@@ -1317,6 +1437,16 @@ s.emplace(4, 5);
 
 如果只想要单纯的集合、字典，没有排序需求，就应该用无序容 器，没有比较排序的成本，它的速度就会非常快。
 
+### 容器适配器
+
+容器适配器特别点在于它们都不是完整的实现，而是依赖于某个现有的容器。
+
+queue  是先进先出（FIFO）的数据结构。queue 缺省用 deque 来实现。它的实际内存布局当然是随底层的容器而定的。从概念上讲，它的结构可如下所示：    
+
+stack 是后进先出（LIFO）的数据结构。  stack 缺省也是用 deque 来实现 。 
+
+priority_queue  在使用缺省的 less 作为其 Compare 模板参数时，最大的数值会出现在容器的“顶部”。如果需要最小的数值出现在容器顶部，则可以传递 greater 作为其 Compare 模板参数。  
+
 ### 总结
 
 ![](./img/std_container.png)
@@ -1326,6 +1456,8 @@ s.emplace(4, 5);
 ## 迭代器
 
 C++ 里的迭代器也有很多种，比如输入迭代器、输出迭代器、双向迭代器、随机访问迭代器。
+
+![](./img/iterator_type.png)
 
 容器一般都会提供 begin()、end() 成员函数，调用它们就可以得到表示两个端点的迭代 器，具体类型最好用 auto 自动推导，不要过分关心。也可以使用更加通用的全局函数 begin()、end()，虽然效果是一样的，但写起来比较方便，看起来也更清楚（另外还有 cbegin()、cend() 函数，返回的是常量迭代器）：
 
@@ -1341,6 +1473,20 @@ auto it2 = std::cbegin(vec);
 - distance()，计算两个迭代器之间的距离
 - advance()，前进或者后退 N 步
 - next()/prev()，计算迭代器前后的某个位置
+
+一般而言，iterator 可写入，  const_iterator 类型不可写入。
+
+back_inserter 返回的类型 back_inserter_iterator，用它我们可以很方便地在容器的尾部进行插入操作。
+
+ostream_iterator，方便我们把容器内容“拷贝”到一个输出流。
+
+ ```
+ std::vector<int> v1{1,2,3};
+ std::vector<int> v2;
+ 
+ std::copy(v1.begin(), v1.end(), std::back_inserter(v2));	
+ std::copy(v2.begin(), v2.end(), std::ostream_iterator<int>(std::cout,","));
+ ```
 
 ## 常用算法
 
