@@ -114,6 +114,70 @@ template <class T>
 using remove_const_t = typename remove_const<T>::type;
 ```
 
+### constexpr  
+
+constexpr 的字面意思是 constant expression，常量表达式。存在两类 constexpr 对象：   
+
+- constexpr 变量  
+- constexpr 函数  
+
+一个 constexpr 变量是一个编译时完全确定的常数。
+
+一个 constexpr 函数至少对于某一组实参可以在编译期间产生一个编译期常数。注意一个 constexpr 函数不保证在所有情况下都会产生一个编译期常数（因而也是可以作为普通函数来使用的）。编译器唯一强制的是：  
+
+- constexpr 变量必须立即初始化  
+- 初始化只能使用字面量或常量表达式，后者不允许调用任何非 constexpr 函数  
+
+要检验一个 constexpr 函数能不能产生一个真正的编译期常量，可以把结果赋给一个constexpr 变量。成功的话，我们就确认了，至少在这种调用情况下，我们能真正得到一个编译期常量。  
+
+constexpr 和编译期计算：
+
+```
+constexpr int factorial(int n)
+{
+	return n == 0 ? 1 : n * factorial(n - 1);
+}
+```
+
+constexpr 和 const：
+
+本质上，const 用来表示一个运行时常量。constexpr 代表编译期常数，一个 constexpr 变量仍然是 const 常类型。  
+
+## 可变模板
+
+C++11 引入的一项新功能，使我们可以在模板参数里表达不定个数和类型的参数。从实际的角度，它有两个明显的用途：  
+
+- 用于在通用工具模板中转发参数到另外一个函数  
+- 用于在递归的模板中表达通用的情况（另外会有至少一个模板特化来表达边界情况）  
+
+### 转发用法
+
+```
+template <typename T,typename... Args>
+inline unique_ptr<T> make_unique(Args&&... args)
+{
+	return unique_ptr<T>(new T(forward<Args>(args)...));
+}
+```
+
+###  递归用法  
+
+```
+template <typename T>
+constexpr auto sum(T x)
+{
+	return x;
+} 
+
+template <typename T1, typename T2,	typename... Targ>
+constexpr auto sum(T1 x, T2 y,Targ... args)
+{
+	return sum(x + y, args...);
+}
+```
+
+
+
 
 
 ## C++ 语言的编程范式：
@@ -738,7 +802,7 @@ shared_ptr  缺陷：
 class SharedCount
 {
 private:
-	long count_;
+	std::atomic_long count_;
 
 public:
 	SharedCount() noexcept : count_(1)
@@ -747,7 +811,7 @@ public:
 
 	void add_count() noexcept
 	{
-		++count_;
+		count_.fetch_add(1,std::memory_order_relaxed);
 	}
 
 	long reduce_count() noexcept
@@ -923,7 +987,7 @@ SharedPtr<T> const_pointer_cast(const SharedPtr<U>& other) noexcept
 }
 //@ dynamic_cast
 template <typename T, typename U>
-SharedPtr<T> dynamic_pointer(const SharedPtr<U>& other) noexcept
+SharedPtr<T> dynamic_pointer_cast(const SharedPtr<U>& other) noexcept
 {
 	T* ptr = dynamic_cast<T*> (other.get());
 	return SharedPtr<T>(other, ptr);
@@ -975,7 +1039,7 @@ public:
 
 int main()
 {
-	SharedPtr<Base> pb = make_sharedptr<Derived>(10,3.12);
+	SharedPtr<Base> pb = make_sharedptr<Derived>(10, 3.12);
 	std::cout << pb.use_count() << std::endl;
 	SharedPtr<Base> pb2 = pb;
 	std::cout << pb.use_count() << std::endl;
@@ -992,6 +1056,7 @@ int main()
 
 	return 0;
 }
+
 ```
 
 
@@ -1513,6 +1578,157 @@ priority_queue  在使用缺省的 less 作为其 Compare 模板参数时，最�
 
 ![](./img/std_container.png)
 
+# 模板编程
+
+## SFINAE  
+
+SFINAE  即替换失败非错（substituion failure is not an error）。
+
+### 函数模板的重载决议  
+
+当一个函数名称和某个函数模板名称匹配时，重载决议过程大致如下：    
+
+- 根据名称找出所有适用的函数和函数模板
+- 对于适用的函数模板，要根据实际情况对模板形参进行替换；替换过程中如果发生错误，这个模板会被丢弃
+- 在上面两步生成的可行函数集合中，编译器会寻找一个最佳匹配，产生对该函数的调用
+- 如果没有找到最佳匹配，或者找到多个匹配程度相当的函数，则编译器需要报错  
+
+```
+struct Test final
+{
+	typedef int foo;
+};
+
+template <typename T>
+void f(typename  T::foo)
+{
+	std::cout << "f(typename  T::foo)" << std::endl;
+}
+
+
+template <typename T>
+void f(T)
+{
+	std::cout << "f(T)" << std::endl;
+}
+
+int main()
+{
+	f<Test>(10); //@ f(Test::foo)
+	f<int>(10); //@ f(10),f(int::foo) 不合法
+	return 0;
+}
+```
+
+在这儿，体现的是 SFINAE 设计的最初用法：如果模板实例化中发生了失败，没有理由编译就此出错终止，因为还是可能有其他可用的函数重载的。  
+
+SFINAE 可以用于其他用途。比如，根据某个实例化的成功或失败来在编译期检测类的特性。  
+
+```
+template <typename T>
+struct HasReserve
+{
+	//@ 定义 good，bad类，只需要关注它们大小不一样
+	struct good { char dummy; };
+	struct bad { char dummy[2]; };
+
+	//@ 定义 SFINAE 模板，但是模板的第二个参数是第一个参数的成员函数指针，输入参数 size_t,返回 void
+	template <class U,void (U::*)(size_t)>
+	struct SFINAE {};
+
+	template <class U>
+	static good	reserve(SFINAE<U, &U::reserve>*);
+
+	template<class U>
+	static bad reserve(...);
+
+	//@ 定义常整型布尔值 value，结果是 true 还是 false，取决于 nullptr 能
+	//@不能和 SFINAE* 匹配成功，而这又取决于模板参数 T 有没有返回类型是 void、接受一
+	//@ 个参数并且类型为 size_t 的成员函数 reserve
+	static const bool value = sizeof(reserve<T>(nullptr)) == sizeof(good);
+};
+```
+
+### SFINAE 模板技巧  
+
+C++11 开始，标准库里有了一个叫 enable_if 的模板，可以用它来选择性地启用某个函数的重载。 例如：
+
+```
+template <typename C, typename T>
+enable_if_t<HasReserve<C>::value, void>	append(C& container, T* ptr, size_t size)
+{
+	container.reserve(
+		container.size() + size);
+	for (size_t i = 0; i < size;
+		++i) {
+		container.push_back(ptr[i]);
+	}
+}
+
+template <typename C, typename T>
+enable_if_t<!HasReserve<C>::value, void> append(C& container, T* ptr, size_t size)
+{
+	for (size_t i = 0; i < size;
+		++i) {
+		container.push_back(ptr[i]);
+	}
+}
+```
+
+对于某个 type trait，添加 _t 的后缀等价于其 type 成员类型。因而，我们可以用 enable_if_t 来取到结果的类型。  
+
+enable_if_t<HasReserve<C>::value, void> 的意思可以理解成：如果类型 C 有reserve 成员的话，那我们启用下面的成员函数，它的返回类型为 void。
+
+decltype 返回值：
+
+如果只需要在某个操作有效的情况下启用某个函数，而不需要考虑相反的情况的话，有另外一个技巧可以用。对于上面的 append 的情况，如果我们想限制只有具有 reserve 成员函数的类可以使用这个重载  
+
+```
+template <typename C, typename T>
+auto append(C& container, T* ptr,size_t size)-> decltype(declval<C&>().reserve(1U),void())
+{
+	container.reserve(
+		container.size() + size);
+	for (size_t i = 0; i < size;
+		++i) {
+		container.push_back(ptr[i]);
+	}
+}
+```
+
+declval  模板用来声明一个某个类型的参数，但这个参数只是用来参加模板的匹配，不允许实际使用。使用这个模板，我们可以在某类型没有默认构造函数的情况下，假想出一个该类的对象来进行类型推导。declval<C&>().reserve(1U) 用来测试 C& 类型的对象是不是可以拿 1U 作为参数来调用 reserve 成员函数。此外，我们需要记得，C++ 里的逗号表达式的意思是按顺序逐个估值，并返回最后一项。所以，上面这个函数的返回值类型是 void。  
+
+标签分发：
+
+```
+template <typename C, typename T>
+void _append(C& container, T* ptr, size_t size, true_type)
+{
+	container.reserve(container.size() + size);
+	for (size_t i = 0; i < size; ++i)
+	{
+		container.push_back(ptr[i]);
+	}
+}
+
+template <typename C, typename T>
+void _append(C& container, T* ptr, size_t size, false_type)
+{
+	for (size_t i = 0; i < size;
+		++i) {
+		container.push_back(ptr[i]);
+	}
+}
+
+template <typename C, typename T>
+void append(C& container, T* ptr, size_t size)
+{
+	_append(container, ptr, size, integral_constant<bool, has_reserve<C>::value>{});
+}
+```
+
+这个代码跟使用 enable_if 是等价的。当然，在这个例子，标签分发并没有使用 enable_if 显得方便。  
+
 # 算法
 
 ## 迭代器
@@ -1642,7 +1858,170 @@ pos = std::find_first_of(vec.begin(), vec.end(), arr.begin(), arr.end());
 
 在 C++ 语言里，线程就是一个能够独立运行的函数。任何程序一开始就有一个主线程，它从 main() 开始运行。主线程可以调用接口函数，创建 出子线程。子线程会立即脱离主线程的控制流程，单独运行，但共享主线程的数据。程序创 建出多个子线程，执行多个不同的函数，也就成了多线程。
 
-“读而不写”就不会有数据竞争。所以，在 C++ 多线程编程里读取 const 变量总是安全的，对类调用 const 成员函数、对 容器调用只读算法也总是线程安全的。
+“读而不写”就不会有数据竞争。所以，在 C++ 多线程编程里读取 const 变量总是安全的，对类调用 const 成员函数、对容器调用只读算法也总是线程安全的。
+
+## atomic  
+
+atomic 模板，对原子对象进行了封装。  
+
+原子操作有三类：  
+
+- 读：在读取的过程中，读取位置的内容不会发生任何变动
+- 写：在写入的过程中，其他执行线程不会看到部分写入的结果
+- 读‐修改‐写：读取内存、修改数值、然后写回内存，整个操作的过程中间不会有其他写入操作插入，其他执行线程不会看到部分写入的结果  
+
+内存序：
+
+- memory_order_relaxed：松散内存序，只用来保证对原子对象的操作是原子的
+- memory_order_consume：目前不鼓励使用  
+- memory_order_acquire：获得操作，在读取某原子对象时，当前线程的任何后面的读写操作都不允许重排到这个操作的前面去，并且其他线程在对同一个原子对象释放之前的所有内存写入都在当前线程可见  
+- memory_order_release：释放操作，在写入某原子对象时，当前线程的任何前面的读写操作都不允许重排到这个操作的后面去，并且当前线程的所有内存写入都在对同一个原子对象进行获取的其他线程可见  
+- memory_order_acq_rel：获得释放操作，一个读‐修改‐写操作同时具有获得语义和释放语义，即它前后的任何读写操作都不允许重排，并且其他线程在对同一个原子对象释放之前的所有内存写入都在当前线程可见，当前线程的所有内存写入都在对同一个原子对象进行获取的其他线程可见  
+- memory_order_seq_cst：顺序一致性语义，对于读操作相当于获取，对于写操作相当于释放，对于读‐修改‐写操作相当于获得释放，是所有原子操作的默认内存序  
+
+
+
+## mutex  
+
+mutex 只可默认构造，不可拷贝（或移动），不可赋值，主要提供的方法是：  
+
+- lock：锁定，锁已经被其他线程获得时则阻塞执行
+- try_lock：尝试锁定，获得锁返回 true，在锁被其他线程获得时返回 false
+- unlock：解除锁定（只允许在已获得锁时调用）  
+
+允许同一线程可以无阻塞地多次加锁外（也必须有对应数量的解锁操作），recursive_mutex 的其他行为和 mutex 一致。  
+
+除了 mutex 和 recursive_mutex，C++ 标准库还提供了：
+
+- timed_mutex：允许锁定超时的互斥量
+- recursive_timed_mutex：允许锁定超时的递归互斥量
+- shared_mutex：允许共享和独占两种获得方式的互斥量
+- shared_timed_mutex：允许共享和独占两种获得方式的、允许锁定超时的互斥量  
+
+## 条件变量
+
+```
+void work(std::condition_variable& cv, int & result)
+{
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+	result = 42;
+	cv.notify_one();
+}
+
+int main()
+{
+	std::condition_variable cv;
+	std::mutex  cv_mtx;
+	int result;
+
+	std::thread t(work,std::ref(cv),std::ref(result));
+
+	std::unique_lock<std::mutex> lock(cv_mtx);
+	cv.wait(lock);
+
+	std::cout << "ans is:" << result << std::endl;
+
+	t.join();
+
+	return 0;
+}
+```
+
+## future
+
+```
+int work()
+{
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+	return 42;
+}
+
+int main()
+{
+	auto fut = std::async(std::launch::async,work);
+	std::cout << "ans is:" << fut.get() << std::endl;
+
+	return 0;
+}
+```
+
+一个 future 上只能调用一次 get 函数，第二次调用为未定义行为，通常导致程序崩溃。  
+
+这样一来，自然一个 future 是不能直接在多个线程里用的。 但是可以使用 shared_future 解决此问题， 要么直接拿 future 来移动构造一个 shared_future [12]，要么调用 future 的 share 方法来生成一个 shared_future，结果就可以在多个线程里用了——当然，每个 shared_future 上仍然还是只能调用一次 get 函数。  
+
+## promise
+
+```
+void work(std::promise<int> pro)
+{
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+	pro.set_value(42);
+}
+
+int main()
+{
+	std::promise<int> prom;
+	auto fut = prom.get_future();
+
+	std::thread t(work, std::move(prom));
+
+	while (1)
+	{
+		auto && status = fut.wait_for(std::chrono::milliseconds(300));
+		if (status == std::future_status::timeout)
+			std::cout << "wait timeout ..." << std::endl;
+		else if (status == std::future_status::ready)
+			break;
+	}
+
+	std::cout << "ans is:" << fut.get() << std::endl;
+
+	t.join();
+
+	return 0;
+}
+```
+
+promise 和 future 在这里成对出现，可以看作是一个一次性管道：有人需要兑现承诺，往 promise 里放东西（set_value）；有人就像收期货一样，到时间去 future  里拿（get）就行了。我们把 prom 移动给新线程，这样老线程就完全不需要管理它的生命周期了。
+
+一组promise 和 future 只能使用一次，既不能重复设，也不能重复取。
+
+## package_task
+
+```
+int work()
+{
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+	return 42;
+}
+
+int main()
+{
+	std::packaged_task<int()> task(work);
+	auto fut = task.get_future();
+
+	std::thread t(std::move(task));
+
+	while (1)
+	{
+		auto && status = fut.wait_for(std::chrono::milliseconds(300));
+		if (status == std::future_status::timeout)
+			std::cout << "wait timeout ..." << std::endl;
+		else if (status == std::future_status::ready)
+			break;
+	}
+
+	std::cout << "ans is:" << fut.get() << std::endl;
+
+	t.join();
+
+	return 0;
+}
+```
+
+打包任务里打包的是一个函数，模板参数就是一个函数类型。跟 thread、future、promise 一样，packaged_task 只能移动，不能复制。它是个函数对象，可以像正常函数一样被执行，也可以传递给 thread 在新线程中执行。它的特别地方，自然也是你可以从它得到一个未来量了。通过这个未来量，你可以得到这个打包任务的返回值，或者，至少知道这个打包任务已经执行结束了。  
+
+
 
 ## 多线程开发实践
 
