@@ -374,3 +374,56 @@ public:
 };
 ```
 
+# [75. 颜色分类](https://leetcode-cn.com/problems/sort-colors/)
+
+```
+class Solution {
+public:
+    void sortColors(vector<int>& nums) {
+        int curr = 0,left = 0,right = nums.size() - 1;
+        while(curr <= right)
+        {
+            if(nums[curr] == 0)
+                std::swap(nums[curr++],nums[left++]);
+            else if(nums[curr] == 2)
+                std::swap(nums[curr],nums[right--]);
+            else
+                curr++;
+        }
+    }
+};
+```
+
+# [179. 最大数](https://leetcode-cn.com/problems/largest-number/)
+
+```
+class Solution {
+public:
+    string largestNumber(vector<int>& nums) {
+        if (std::all_of(nums.begin(), nums.end(), [](int x) { return x == 0; })) 
+            return string("0");
+
+        std::vector<std::string> strs(nums.size());
+        std::transform(nums.begin(),nums.end(),strs.begin(),[](int num){return std::to_string(num);});
+        std::sort(strs.begin(),strs.end(),[](const std::string& s1,const std::string& s2){return s1 + s2 > s2+ s1;});
+        return std::accumulate(strs.begin(),strs.end(),std::string());
+    }
+};
+```
+
+# [324. 摆动排序 II](https://leetcode-cn.com/problems/wiggle-sort-ii/)
+
+```
+class Solution {
+public:
+    void wiggleSort(vector<int>& nums) {
+        std::sort(nums.begin(),nums.end());
+        size_t n = nums.size();
+        size_t right = n,left = (n+1) >> 1;
+        std::vector<int> tmp(nums);
+        for(size_t i = 0;i < n;++i)
+            nums[i] = (i & 1) ? tmp[--right] : tmp[--left];
+    }
+};
+```
+
