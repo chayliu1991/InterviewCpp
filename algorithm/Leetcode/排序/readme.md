@@ -275,3 +275,102 @@ void radix_sort(std::vector<int>& nums)
 - 直接插入排序更适合于原始记录基本有序的集合。希尔排序的比较次数和移动次数都要比直接插入排序少，当N越大时，效果越明显
 - 直接插入排序也适用于链式存储结构；希尔排序不适用于链式结构
 
+# [147. 对链表进行插入排序](https://leetcode-cn.com/problems/insertion-sort-list/)
+
+```
+class Solution {
+public:
+    ListNode* insertionSortList(ListNode* head) {
+        if(head == nullptr || head->next == nullptr)
+            return head;
+        ListNode dummy(-1);
+        dummy.next = head;
+        ListNode* curr = head->next,*prev = head;
+        while(curr)
+        {
+            if(curr->val < prev->val)
+            {
+                ListNode* tmp = &dummy;
+                while(tmp->next->val <= curr->val)
+                    tmp = tmp->next;
+                
+                prev->next = curr->next;
+                curr->next = tmp->next;
+                tmp->next = curr;
+                curr = prev->next;
+            }
+            else
+            {
+                curr = curr->next;
+                prev = prev->next;
+            }
+        }
+        return dummy.next;
+    }
+};
+```
+
+# [148. 排序链表](https://leetcode-cn.com/problems/sort-list/)
+
+```
+class Solution {
+public:
+    ListNode* sortList(ListNode* head) {
+        if(head == nullptr || head->next == nullptr)
+            return head;
+        
+        ListNode* slow = head,*fast = head->next;
+        while(fast && fast->next)
+        {
+            slow = slow->next;
+            fast = fast->next->next;
+        }
+
+        ListNode* mid = slow->next;
+        slow->next = nullptr;
+        return merge(sortList(head),sortList(mid));
+    }
+
+    ListNode* merge(ListNode* l1,ListNode* l2)
+    {
+        ListNode dummy(-1);
+        ListNode* tail = &dummy;
+        while(l1 && l2)
+        {
+            if(l1->val > l2->val)
+                std::swap(l1,l2);
+            tail->next = l1;
+            l1 = l1->next;
+            tail = tail->next;
+        }
+        if(l1)
+            tail->next = l1;
+        if(l2)
+            tail->next = l2;
+        return dummy.next;
+    }
+};
+```
+
+# [347. 前 K 个高频元素](https://leetcode-cn.com/problems/top-k-frequent-elements/)
+
+```
+class Solution {
+public:
+    vector<int> topKFrequent(vector<int>& nums, int k) {
+        std::map<int,int> hash;
+        for(auto num : nums)
+            hash[num] ++;
+        
+        using DataPair = std::pair<int,int>;
+        std::vector<DataPair> vec(hash.begin(),hash.end());
+        std::sort(vec.begin(),vec.end(),[](const DataPair& p1,const DataPair& p2){return p1.second > p2.second;});
+        
+        std::vector<int> res;
+        for(int i = 0;i < k;i++)
+            res.emplace_back(vec[i].first);
+        return res;
+    }
+};
+```
+
