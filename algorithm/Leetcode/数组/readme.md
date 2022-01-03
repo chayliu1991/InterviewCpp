@@ -314,3 +314,76 @@ public:
 };
 ```
 
+# [54. 螺旋矩阵](https://leetcode-cn.com/problems/spiral-matrix/)
+
+```
+class Solution {
+public:
+    vector<int> spiralOrder(vector<vector<int>>& matrix) {
+        vector <int> res;
+        if(matrix.empty()) 
+            return res; 
+        //@ 赋值上下左右边界
+        int up = 0,down = matrix.size() - 1,left = 0,right = matrix[0].size() - 1;
+        while(true)
+        {
+            for(int i = left; i <= right; ++i) 
+				res.push_back(matrix[up][i]); //@ 向右移动直到最右			
+            if(++ up > down) 
+				break; //@ 重新设定上边界，若上边界大于下边界，则遍历遍历完成
+			
+            for(int i = up; i <= down; ++i) 
+				res.push_back(matrix[i][right]); //@ 向下
+            if(-- right < left) 
+				break; //@ 重新设定右边界
+			
+            for(int i = right; i >= left; --i) 
+				res.push_back(matrix[down][i]); //@ 向左
+            if(-- down < up) 
+				break; //@ 重新设定下边界
+			
+            for(int i = down; i >= up; --i) 
+				res.push_back(matrix[i][left]); //@ 向上
+            if(++ left > right) 
+				break; //@ 重新设定左边界
+        }
+        return res;
+    }
+};
+```
+
+# [661. 图片平滑器](https://leetcode-cn.com/problems/image-smoother/)
+
+```
+class Solution {
+public:
+    vector<vector<int>> imageSmoother(vector<vector<int>>& M) 
+    {       
+        int m = M.size(),n = M[0].size();
+        vector<vector<int>> res(M);
+        int col=M[0].size();
+        vector<vector<int>> dir {{-1,0},{1,0},{0,1},{0,-1},{-1,-1},{-1,1},{1,-1},{1,1}};
+        for(int i = 0;i < m;i++)
+        {
+            for(int j = 0;j < n;j++)
+            {
+                int count = 1;       
+                for(const auto d : dir)
+                {
+                    int x = i + d[0];
+                    int y = j + d[1];                    
+                    
+                    if(0 <= x && x < m && 0 <= y && y < n)
+                    {
+                        count++;
+                        res[i][j] += M[x][y];
+                    }                    
+                }
+                res[i][j] = res[i][j] / count;
+            }
+        }
+        return res;
+    }
+};
+```
+
