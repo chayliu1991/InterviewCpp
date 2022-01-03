@@ -244,3 +244,29 @@ public:
 };
 ```
 
+# [22. 括号生成](https://leetcode-cn.com/problems/generate-parentheses/)
+
+```
+class Solution {
+public:
+    vector<string> generateParenthesis(int n) {
+        if(n <= 0)
+            return {};
+        
+        vector<string>  res;
+        dfs(res,"",n,0,0);
+        return res;
+    }
+
+    void dfs(vector<string>& res,string path,int n,int lc,int rc) 
+    {
+        //@ dfs 的条件是有括号数量不能大于左括号，左、右括号的长度都不能大于n
+        if(rc > lc || rc > n || lc > n)
+            return;
+        if(rc == lc && lc == n)
+            res.push_back(path);
+        dfs(res,path+'(',n,lc+1,rc);
+        dfs(res,path+')',n,lc,rc+1);
+    }
+};
+```
