@@ -178,3 +178,4 @@ wss-URI = "wss:" "//" host [ ":" port ] path [ "?" query ]
 关闭帧的错误码  
 
 ![](./img/ws_close_error.png)
+
