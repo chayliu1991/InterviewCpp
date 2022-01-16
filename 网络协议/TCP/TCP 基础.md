@@ -525,7 +525,7 @@ net.ipv4.tcp_keepalive_probes=9
 
 ## listen 
 
-Linux内核中会维护两个队列：  
+Linux 内核中会维护两个队列：  
 
 - 未完成连接队列（SYN 队列）：接收到⼀个 SYN 建⽴连接请求，处于 SYN_RCVD 状态  
 - 已完成连接队列（Accpet 队列）：已完成 TCP 三次握⼿过程，处于 ESTABLISHED 状态  
