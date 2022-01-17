@@ -205,7 +205,7 @@ cat /proc/sys/net/ipv4/tcp_retries2
 
 如果客户端不发送数据，什么时候才会断开处于 ESTABLISHED 状态的连接?
 
-这⾥就需要提到 TCP 的 保活机制。这个机制的原理是这样的：
+这⾥就需要提到 TCP 的保活机制。这个机制的原理是这样的：
 
 定义⼀个时间段，在这个时间段内，如果没有任何连接相关的活动， TCP 保活机制会开始作⽤，每隔⼀个时间间隔，发送⼀个探测报⽂，该探测报⽂包含的数据⾮常少，如果连续⼏个探测报⽂都没有得到响应，则认为当前的 TCP 连接已经死亡，系统内核将错误信息通知给上层应⽤程序。  
 
@@ -251,7 +251,7 @@ net.ipv4.tcp_keepalive_probes=9
 - 在第⼀次建⽴连接的时候，服务端在第⼆次握⼿产⽣⼀个 Cookie （已加密）并通过 SYN、 ACK 包⼀起发给客户端，于是客户端就会缓存这个 Cookie ，所以第⼀次发起 HTTP Get 请求的时候，还是需要 2 个 RTT 的时延
 - 在下次请求的时候，客户端在 SYN 包带上 Cookie 发给服务端，就提前可以跳过三次握⼿的过程，因为 Cookie 中维护了⼀些信息，服务端可以从 Cookie 获取 TCP 相关的信息，这时发起的 HTTP GET 请求就只需要 1 个 RTT 的时延  
 
-客户端在请求并存储了 Fast Open Cookie 之后，可以不断重复 TCP Fast Open 直⾄服务器认为 Cookie ⽆效（通常为过期）  
+客户端在请求并存储了 Fast Open Cookie 之后，可以不断重复 TCP Fast Open 直⾄服务器认为 Cookie ⽆效（通常为过期）。  
 
 ## 在 Linux 上如何打开 Fast Open 功能  
 
