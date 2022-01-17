@@ -103,3 +103,56 @@ accept 队列的⻓度取决于 somaxconn 和 backlog 之间的最⼩值，也�
 
 ![](./img/tcp_fast_open.png)
 
+在客户端⾸次建⽴连接时的过程：
+
+- 客户端发送 SYN 报⽂，该报⽂包含 Fast Open 选项，且该选项的 Cookie 为空，这表明客户端请求 Fast Open Cookie
+- ⽀持 TCP Fast Open 的服务器⽣成 Cookie，并将其置于 SYN-ACK 数据包中的 Fast Open 选项以发回客户端
+- 客户端收到 SYN-ACK 后，本地缓存 Fast Open 选项中的 Cookie
+
+所以，第⼀次发起 HTTP GET 请求的时候，还是需要正常的三次握⼿流程。 之后，如果客户端再次向服务器建⽴连接时的过程：  
+
+- 客户端发送 SYN 报⽂，该报⽂包含数据（对于⾮ TFO 的普通 TCP 握⼿过程， SYN 报⽂中不包含数据）以及此前记录的 Cookie
+- ⽀持 TCP Fast Open 的服务器会对收到 Cookie 进⾏校验：如果 Cookie 有效，服务器将在 SYN-ACK 报⽂中对 SYN 和数据进⾏确认，服务器随后将数据递送⾄相应的应⽤程序；如果 Cookie ⽆效，服务器将丢弃 SYN 报⽂中包含的数据，且其随后发出的 SYN-ACK 报⽂将只确认 SYN 的对应序列号
+- 如果服务器接受了 SYN 报⽂中的数据，服务器可在握⼿完成之前发送数据， 这就减少了握⼿带来的1 个 RTT 的时间消耗
+- 客户端将发送 ACK 确认服务器发回的 SYN 以及数据，但如果客户端在初始的 SYN 报⽂中发送的数据没有被确认，则客户端将重新发送数据
+- 此后的 TCP 连接的数据传输过程和⾮ TFO 的正常情况⼀致   
+
+所以，之后发起 HTTP GET 请求的时候，可以绕过三次握⼿，这就减少了握⼿带来的 1 个 RTT 的时间消耗。  
+
+开启了 TFO 功能， cookie 的值是存放到 TCP option 字段⾥的，客户端在请求并存储了 Fast Open Cookie 之后，可以不断重复 TCP Fast Open 直⾄服务器认为 Cookie ⽆效（通常为过期）：
+
+![](./img/tcp_option.png)
+
+在 Linux 系统中，可以通过设置 tcp_fastopn 内核参数，来打开 Fast Open 功能：  
+
+![](./img/open_tcp_fastopen.png)
+
+tcp_fastopn 各个值的意义:  
+
+- 0 关闭  
+- 1 作为客户端使⽤ Fast Open 功能  
+- 2 作为服务端使⽤ Fast Open 功能  
+- 3 ⽆论作为客户端还是服务器，都可以使⽤ Fast Open 功能  
+
+TCP Fast Open 功能需要客户端和服务端同时⽀持，才有效果。  
+
+## 小结
+
+TCP 三次握⼿的⼏个内核参数：
+
+![](./img/tcp_3_handshakes_params.png)
+
+客户端的优化：
+
+- 当客户端发起 SYN 包时，可以通过 tcp_syn_retries 控制其重传的次数  
+
+服务端的优化：  
+
+- 当服务端 SYN 半连接队列溢出后，会导致后续连接被丢弃，可以通过 netstat -s 观察半连接队列溢出的情况，如果 SYN 半连接队列溢出情况⽐较严重，可以通过 tcp_max_syn_backlog、 somaxconn、 backlog 参数来调整 SYN 半连接队列的⼤⼩  
+- 服务端回复 SYN+ACK 的重传次数由 tcp_synack_retries 参数控制。如果遭受 SYN 攻击，应把 tcp_syncookies 参数设置为 1，表示仅在 SYN 队列满后开启 syncookie 功能，可以保证正常的连接成功建⽴
+- 服务端收到客户端返回的 ACK，会把连接移⼊ accpet 队列，等待进⾏调⽤ accpet() 函数取出连接。可以通过 ss -lnt 查看服务端进程的 accept 队列⻓度，如果 accept 队列溢出，系统默认丢弃 ACK，如果可以把 tcp_abort_on_overflow 设置为 1 ，表示⽤ RST 通知客户端连接建⽴失败。如果 accpet 队列溢出严重，可以通过 listen 函数的 backlog 参数和 somaxconn 系统参数提⾼队列⼤⼩，accept 队列⻓度取决于 min(backlog, somaxconn)  
+
+绕过三次握⼿：
+
+- TCP Fast Open 功能可以绕过三次握⼿，使得 HTTP 请求减少了 1 个 RTT 的时间， Linux 下可以通过 tcp_fastopen 开启该功能，同时必须保证服务端和客户端同时⽀持  
+
