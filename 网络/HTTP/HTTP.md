@@ -293,15 +293,57 @@ If-Match：
 
 ![](./img/response_header.png)
 
-##　ETag  
+### ETag  
 
 首部字段 ETag 能告知客户端实体标识。它是一种可将资源以字符串形式做唯一性标识的方式。服务器会为每份资源分配对应的 ETag 值。  
 
+当资源更新时， ETag 值也需要更新。生成 ETag 值时，并没有统一的算法规则，而仅仅是由服务器来分配。  
 
+- 资源被缓存时，就会被分配唯一性标识
+- 资源的 URL 相同，但是 ETag 可能是不同的
+- 若在下载过程中出现连接中断、再连接的情况，都会依照 ETag 值来指定资源
+
+![](./img/etag.png)
+
+ETag 中有强 ETag 值和弱 ETag 值之分： 
+
+- 强 ETag 值，不论实体发生多么细微的变化都会改变其值
+
+```
+ETag: "usagi-1234"
+```
+
+- 弱 ETag 值只用于提示资源是否相同。只有资源发生了根本改变，产生差异时才会改变 ETag 值。这时，会在字段值最开始处附加 W/  
+
+```
+ETag: W/"usagi-1234"
+```
+
+### Location  
+
+使用首部字段 Location 可以将响应接收方引导至某个与请求 URI 位置不同的资源。  
+
+基本上，该字段会配合 3xx ： Redirection 的响应，提供重定向的 URI。几乎所有的浏览器在接收到包含首部字段 Location 的响应后，都会强制性地尝试对已提示的重定向资源的访问。  
+
+### WWW-Authenticate  
+
+首部字段 WWW-Authenticate 用于 HTTP 访问认证。它会告知客户端适用于访问请求 URI 所指定资源的认证方案（ Basic 或是 Digest）和带参数提示的质询（ challenge）。状态码 401 Unauthorized 响应中，肯定带有首部字段 WWW-Authenticate。  
+
+# 实体首部字段  
 
 ## 实体首部字段
 
 ![](./img/entity_header.png)
+
+### Expires  
+
+首部字段 Expires 会将资源失效的日期告知客户端。缓存服务器在接收到含有首部字段 Expires 的响应后，会以缓存来应答请求，在Expires 字段值指定的时间之前，响应的副本会一直被保存。当超过指定的时间后，缓存服务器在请求发送过来时，会转向源服务器请求资源。    
+
+当首部字段 Cache-Control 有指定 max-age 指令时，比起首部字段 Expires，会优先处理 max-age 指令。  
+
+## 为 Cookie 服务的首部字段  
+
+
 
  ## End-to-end 和 Hop-by-hop 首部  
 
