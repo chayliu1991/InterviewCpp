@@ -2,7 +2,7 @@
 
 HTTP 是⼀个在计算机世界⾥专⻔在两点之间传输⽂字、图⽚、⾳频、视频等超⽂本数据的约定和规范。  
 
-HTTP 是超⽂本传输协议，也就是HyperText Transfer Protocol。可以拆成三个部分：    
+HTTP 是超⽂本传输协议，也就是 HyperText Transfer Protocol。可以拆成三个部分：    
 
 - 超⽂本
 - 传输
