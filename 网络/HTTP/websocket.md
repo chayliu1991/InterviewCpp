@@ -2,20 +2,17 @@
 
 ![](./img/http_ws.png)
 
-长连接的心跳保持：  
+## 主要特点
 
-- HTTP 长连接只能基于简单的超时（常见为 65 秒）  
-- WebSocket 连接基于 ping/pong 心跳机制维持  
+- 推送功能
+  - 支持由服务器向客户端推送数据的推送功能。这样，服务器可直接发送数据，而不必等待客户端的请求
 
-兼容 HTTP 协议：  
+- 减少通信量
+  - 只要建立起 WebSocket 连接，就希望一直保持连接状态。和 HTTP 相比，不但每次连接时的总开销减少，而且由于 WebSocket 的首部信息很小，通信量也相应减少了
 
-- 默认使用 80 或者 443 端口  
-- 协议升级  
-- 代理服务器可以简单支持  
+## 设计哲学
 
-![](./img/http_upgrade.png)
-
-# 设计哲学：在 Web 约束下暴露 TCP 给上层  
+在 Web 约束下暴露 TCP 给上层  
 
 - 元数据去哪了？  
   - 对比：HTTP 协议头部会存放元数据  
@@ -31,10 +28,13 @@
 
 # 帧格式  
 
-![](./img/ws_frame.png)
+下图就是 WebSocket 的帧结构定义，长度不固定，最少2个字节，最多14字节：
 
-- RSV1/RSV2/RSV3：默认为 0，仅当使用 extension 扩展时，由扩展决定其值  
-- 数据帧格式：帧类型 (opcode) 
+![](D:\share\InterviewCpp\网络协议\WebSocket\img\ws_frame.png)
+
+- 第一个字节的第一位“FIN”是消息结束的标志位，相当于HTTP/2里的“END_STREAM”，表示数据发送完毕。一个消息可以拆成多个帧，接收方看到“FIN”后，就可以把前面的帧拼起来，组成完整的消息，“FIN”后面的三个位是保留位，目前没有任何意义，但必须是 0
+
+- 第一个字节的后4位很重要，叫“Opcode”，操作码，其实就是帧类型：
   - 持续帧  
     - 0：继续前一帧  
   - 非控制帧  
@@ -46,6 +46,39 @@
     - 9：心跳帧 ping  
     - A：心跳帧 pong  
     - B-F：为控制帧保留  
+- 第二个字节第一位是掩码标志位“MASK”，表示帧内容是否使用异或操作（xor）做简单的加密。目前的 WebSocket 标准规定，客户端发送数据必须使用掩码，而服务器发送则必须不使用掩码
+- 第二个字节后7位是 “Payload len”，表示帧内容的长度。它是另一种变长编码，最少 7 位，最多是 7+64 位，也就是额外增加 8 个字节，所以一个 WebSocket帧最大是 2^64
+- 长度字段后面是 “Masking-key”，掩码密钥，它是由上面的标志位“MASK”决定的，如果使用掩码就是 4 个字节的随机数，否则就不存在
+
+# 握手
+
+为了实现 WebSocket 通信，在 HTTP 连接建立之后，需要完成一次 “握手” 的步骤。  
+
+![](./img/websocket.png)
+
+## 握手-请求  
+
+为了实现 WebSocket 通信，需要用到 HTTP 的 Upgrade 首部字段，告知服务器通信协议发生改变，以达到握手的目的。  
+
+WebSocket 的握手是一个标准的 HTTP GET 请求，但要带上两个协议升级的专用头字段：
+
+- “Connection: Upgrade”，表示要求协议“升级”
+- “Upgrade: websocket”，表示要“升级”成 WebSocket 协议
+
+为了防止普通的 HTTP 消息被“意外”识别成 WebSocket，握手消息还增加了两个额外的认证用头字段：
+
+- Sec-WebSocket-Key：一个 Base64 编码的 16 字节随机数，作为简单的认证密钥
+- Sec-WebSocket-Version：协议的版本号，当前必须是 13
+
+![](./img/upgrade_websocket.png)
+
+## 握手-响应  
+
+服务器收到 HTTP 请求报文，看到上面的四个字段，就知道这不是一个普通的 GET 请求，而是 WebSocket 的升级请求，于是就不走普通的 HTTP 处理流程，而是构造一个特殊的 “101 Switching Protocols” 响应报文，通知客户端，接下来就不用 HTTP 了，全改用 WebSocket 协议通信。
+
+![](./img/switch_to_websocket.png)
+
+WebSocket 的握手响应报文也是有特殊格式的，要用字段 “Sec-WebSocket-Accept” 验证客户端请求报文，同样也是为了防止误连接。具体的做法是把请求头里“ Sec-WebSocket-Key” 的值，加上一个专用的 UUID “258EAFA5-E914-47DA-95CA-C5AB0DC85B11”，再计算 SHA-1 摘要。客户端收到响应报文，就可以用同样的算法，比对值是否相等，如果相等，就说明返回的报文确实是刚才握手时连接的服务器，认证成功。握手完成，后续传输的数据就不再是 HTTP 报文，而是 WebSocket 格式的二进制帧了。
 
 # URI 格式  
 
@@ -71,34 +104,14 @@ wss-URI = "wss:" "//" host [ ":" port ] path [ "?" query ]
 - 扩展协议： Sec-WebSocket-Extensions  
 - CORS 跨域：Origin  
 
-# 建立握手  
+# 发送消息  
 
-![](./img/ws_handshake.png)
-
-## 如何证明握手被服务器接受？预防意外  
-
-- 请求中的 Sec-WebSocket-Key 随机数
-  - 例如 Sec-WebSocket-Key: A1EEou7Nnq6+BBZoAZqWlg==
-- 响应中的 Sec-WebSocket-Accept 证明值
-  - GUID（RFC4122）：258EAFA5-E914-47DA-95CA-C5AB0DC85B11
-  - 值构造规则：BASE64(SHA1(Sec-WebSocket-KeyGUID))
-    -  拼接值：A1EEou7Nnq6+BBZoAZqWlg==258EAFA5-E914-47DA-95CA-C5AB0DC85B11
-    -  SHA1 值：713f15ece2218612fcadb1598281a35380d1790f
-    -  BASE 64 值：cT8V7OIhhhL8rbFZgoGjU4DReQ8=
-    -  最终头部：Sec-WebSocket-Accept: cT8V7OIhhhL8rbFZgoGjU4DReQ8=  
-
-## 消息与数据帧  
-
-- Message 消息
-  - 1 条消息由 1 个或者多个帧组成，这些数据帧属于同一类型
-  - 代理服务器可能合并、拆分消息的数据帧
-- Frame 数据帧
-  - 持续帧
-  - 文本帧、二进制帧  
-
-## 非控制帧的消息分片：有序  
-
-![](./img/non_control_frame.png)
+- 确保 WebSocket 会话处于 OPEN 状态
+- 以帧来承载消息，一条消息可以拆分多个数据帧
+- 客户端发送的帧必须基于掩码编码
+- 一旦发送或者接收到关闭帧，连接处于 CLOSING 状态
+- 一旦发送了关闭帧，且接收到关闭帧，连接处于 CLOSED 状态
+- TCP 连接关闭后，WebSocket 连接才完全被关闭  
 
 ## 数据帧格式：消息内容的长度  
 
@@ -122,15 +135,6 @@ wss-URI = "wss:" "//" host [ ":" port ] path [ "?" query ]
 - Extended payload length 共8 字节 64 位表示长度  
 
 ![](./img/message_length.png)
-
-# 发送消息  
-
-- 确保 WebSocket 会话处于 OPEN 状态
-- 以帧来承载消息，一条消息可以拆分多个数据帧
-- 客户端发送的帧必须基于掩码编码
-- 一旦发送或者接收到关闭帧，连接处于 CLOSING 状态
-- 一旦发送了关闭帧，且接收到关闭帧，连接处于 CLOSED 状态
-- TCP 连接关闭后，WebSocket 连接才完全被关闭  
 
 ## frame-masking-key 掩码  
 
@@ -163,7 +167,7 @@ wss-URI = "wss:" "//" host [ ":" port ] path [ "?" query ]
 
 - TCP 连接意外中断  
 
-### 关闭帧格式  
+关闭帧格式：  
 
 - opcode=8
 - 可以含有数据，但仅用于解释关闭会话的原因
