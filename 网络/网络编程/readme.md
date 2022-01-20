@@ -183,5 +183,43 @@ int select(int nfds,fd_set *readfds,fd_set *writefds,fd_set *exceptfds,struct ti
 
 整个 select 的流程图如下：
 
+![](./img/select.png)
 
+这种方式，既做到了一个线程处理多个客户端连接（文件描述符），又减少了系统调用的开销（多个文件描述符只有一次 select 的系统调用 + n 次就绪状态的文件描述符的 read 系统调用）。
+
+## poll
+
+poll 也是操作系统提供的系统调用函数：
+
+```
+int poll(struct pollfd *fds, nfds_tnfds, int timeout);
+ 
+struct pollfd {
+  intfd; /*文件描述符*/
+  shortevents; /*监控的事件*/
+  shortrevents; /*监控事件中满足条件返回的事件*/
+};
+```
+
+它和 select 的主要区别就是，去掉了 select 只能监听 1024 个文件描述符的限制。
+
+## epoll
+
+epoll 的改进：
+
+- 内核中保存一份文件描述符集合，无需用户每次都重新传入，只需告诉内核修改的部分即可
+- 内核不再通过轮询的方式找到就绪的文件描述符，而是通过异步 IO 事件唤醒
+- 内核仅会将有 IO 事件的文件描述符返回给用户，用户也无需遍历整个文件描述符集合
+
+epoll 相关函数集：
+
+```
+//@ 创建一个 epoll 句柄
+int epoll_create(int size);
+
+//@ 向内核添加、修改或删除要监控的文件描述符
+int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
+
+//@ int epoll_wait(int epfd, struct epoll_event *events, int max events, int timeout);
+```
 
