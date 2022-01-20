@@ -63,3 +63,64 @@ int listen (int socketfd, int backlog);
 
 #  IO 多路复用
 
+## 阻塞 IO
+
+服务端为了处理客户端的连接和请求的数据，写了如下代码：
+
+```
+listenfd = socket();   // 打开一个网络通信端口
+bind(listenfd);        // 绑定
+listen(listenfd);      // 监听
+while(1) {
+  connfd = accept(listenfd);  // 阻塞建立连接
+  int n = read(connfd, buf);  // 阻塞读数据
+  doSomeThing(buf);  // 利用读到的数据做些什么
+  close(connfd);     // 关闭连接，循环等待下一个连接
+}
+```
+![](./img/socket_program.gif)
+
+可以看到，服务端的线程阻塞在了两个地方，一个是 accept 函数，一个是 read 函数。如果再把 read 函数的细节展开，我们会发现其阻塞在了两个阶段：
+
+![](./img/blocked_io.gif)
+
+这就是传统的阻塞 IO。整体流程如下：
+
+![](./img/blocked_io.png)
+
+所以，如果这个连接的客户端一直不发数据，那么服务端线程将会一直阻塞在 read 函数上不返回，也无法接受其他客户端连接。这肯定是不行的。
+
+## **非阻塞 IO**
+
+为了解决上面的问题，其关键在于改造这个 read 函数。有一种聪明的办法是，每次都创建一个新的进程或线程，去调用 read 函数，并做业务处理：
+
+```
+while(1) {
+  connfd = accept(listenfd);  // 阻塞建立连接
+  pthread_create（doWork);  // 创建一个新的线程
+}
+
+void doWork() {
+  int n = read(connfd, buf);  // 阻塞读数据
+  doSomeThing(buf);  // 利用读到的数据做些什么
+  close(connfd);     // 关闭连接，循环等待下一个连接
+}
+```
+
+这样，当给一个客户端建立好连接后，就可以立刻等待新的客户端连接，而不用阻塞在原客户端的 read 请求上：
+
+![](./img/multi_threads_io.gif)
+
+不过，这不叫非阻塞 IO，只不过用了多线程的手段使得主线程没有卡在 read 函数上不往下走罢了。操作系统为我们提供的 read 函数仍然是阻塞的。
+
+真正的非阻塞 IO，不能是通过我们用户层的小把戏，而是要恳请操作系统为我们提供一个非阻塞的 read 函数。这个 read 函数的效果是，如果没有数据到达时（到达网卡并拷贝到了内核缓冲区），立刻返回一个错误值（-1），而不是阻塞地等待。操作系统提供了这样的功能，只需要在调用 read 前，将文件描述符设置为非阻塞即可：
+
+```
+```
+
+
+
+
+
+
+
