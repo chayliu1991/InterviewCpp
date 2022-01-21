@@ -173,7 +173,37 @@ int select(int nfds,fd_set *readfds,fd_set *writefds,fd_set *exceptfds,struct ti
     //@  1.NULL，永远等下去
     //@  2.设置timeval，等待固定时间
     //@  3.设置timeval里时间均为0，检查描述字后立即返回，轮询
+    
+//@ 成功时返回可读+可写+异常 文件描述符的总数
+	//@ 如果在超时时间内没有任何文件描述符就绪，将返回 0
+	//@ 失败时返回 -1，并设置 errno
+	//@ 如果在 select() 期间程序收到信号，则 select() 将立即返回 -1，并设置 EINTR
 ```
+
+fd_set 相关操作：
+
+```
+void FD_ZERO(fd_set *set);   //@ 用来将这个向量的所有元素都设置成 0
+void FD_SET(int fd, fd_set *set); //@ 用来把对应套接字 fd 的元素，a[fd] 设置成 1
+void FD_CLR(int fd, fd_set *set); //@ 用来把对应套接字 fd 的元素，a[fd] 设置成 0
+int  FD_ISSET(int fd, fd_set *set); //@ 对这个向量进行检测，判断出对应套接字的元素 a[fd] 是 0 还是1
+```
+
+### 文件描述符就绪条件
+
+套接字可读：
+
+- 该套接字接收缓冲区中的数据字节数大于等于套接字接收缓冲区低水位标记 SO_RCVLOWT 的当前大小。对这样的套接字执行读操作不会阻塞并将返回一个大于 0 的值（也就是返回准备好读入的数据，即进程可以从缓冲区中读取数据）
+- 该连接的读半部关闭（也就是接收了 FIN 的 TCP 连接）。对这样的套接字的读操作将不阻塞并返回0（因为这时候服务器执行 close() 套接字需要一段时间，而这段时间内，客户端可继续从服务器读取数据，只是读取的是 EOF 而已）
+- 该套接字是一个监听套接字且已完成的连接数不为 0。（这样服务端才能执行 accept() 函数，读取客户端发送过来的数据）
+- socket 上有未处理的错误，此时我们可以使用 getsockopt 来读取和清除错误
+
+套接字可写：
+
+- 该套接字发送缓冲区中的可用空间字节数大于等于套接字发送缓冲区低水位标记 SO_SNDLOWWAT  的当前大小，并且或者该套接字已连接，或者该套接字不需要连接
+- 该连接的写半关闭。对这样的套接字的写操作将产生 SIGPIPE 信号。（就是如果服务器不启动，而客户端启动向服务器发送数据，则服务端向客户端发送RST，并且向客户端写入数据（相当于客户端读取数据），则产生 SIGPIPE 信号，进程强行终止）
+- 使用非阻塞式 connect() 的套接字已建立连接，或者 connect() 已经以失败告终
+- socket 上有未处理的错误，此时我们可以使用 getsockopt 来读取和清除错误
 
 不过，当 select 函数返回后，用户依然需要遍历刚刚提交给操作系统的 list。只不过，操作系统会将准备就绪的文件描述符做上标识，用户层将不会再有无意义的系统调用开销。
 
@@ -199,9 +229,23 @@ struct pollfd {
   shortevents; /*监控的事件*/
   shortrevents; /*监控事件中满足条件返回的事件*/
 };
+
+//@ 参数 timeout，指定 poll 的超时值，单位是毫秒：
+	//@ 如果是一个小于的数，表示在有事件发生之前永远等待
+    //@ 如果是 0，表示不阻塞进程，立即返回
+    //@ 如果是一个大于的数，表示 poll() 调用方等待指定的毫秒数后返回
+
+//@ 当有错误发生时，poll() 函数的返回值为 -1；如果在指定的时间到达之前没有任何事件发生，则返回 0，否则就返回检测到的事件个数，也就是 "returned events" 中非 0 的描述符个数
 ```
 
-它和 select 的主要区别就是，去掉了 select 只能监听 1024 个文件描述符的限制。
+它和 select 的主要区别是
+
+- 去掉了 select 只能监听 1024 个文件描述符的限制
+- poll() 每次检测之后的结果不会修改原来的传入值，而是将结果保留在 revents 字段中，这样就不需要每次检测完都得重置待检测的描述字和感兴趣的事件
+
+events 和 revents：
+
+![](./img/events.png)
 
 ## epoll
 
@@ -219,8 +263,63 @@ int epoll_create(int size);
 
 //@ 向内核添加、修改或删除要监控的文件描述符
 int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
+//@ op 表示操作选项，可以选择为：
+	//@ EPOLL_CTL_ADD： 向 epoll 实例注册文件描述符对应的事件
+	//@ EPOLL_CTL_DEL：向 epoll 实例删除文件描述符对应的事件
+	//@ EPOLL_CTL_MOD： 修改文件描述符对应的事件
+	
+/*
+    typedef union epoll_data
+    {
+        void* ptr;		//@ 用来指定与 fd 相关的用户数据。
+        int fd;			//@ 指定事件所从属的目标文件描述符。
+        uint32_t u32;	//@
+        uint64_t u64;	//@
+    }epoll_data_t;
+
+    struct epoll_event 
+    {
+        __uint32_t events;  //@ epoll 事件
+        epoll_data_t data;	//@ 用户数据
+    };
+*/
 
 //@ int epoll_wait(int epfd, struct epoll_event *events, int max events, int timeout);
+//@ 函数调用成功返回 0，若返回 -1 表示出错
 ```
 
 ![](./img/epoll.gif)
+
+![](./img/epoll_process.png)
+
+事件类型：
+
+- EPOLLIN：表示对应的文件描述字可以读
+- EPOLLOUT：表示对应的文件描述字可以写
+- EPOLLRDHUP：表示套接字的一端已经关闭，或者半关闭
+- EPOLLHUP：表示对应的文件描述字被挂起
+- EPOLLET：设置为 edge-triggered，默认为 level-triggered
+- EPOLLONESHOT：只监听一次事件，当监听完这次事件之后，如果还需要继续监听这个socket的话，需要再次把这个 socket 加入到 EPOLL 队列里
+
+### 两种模式
+
+LT(level triggered)：
+
+事件触发是缺省的工作方式，并且同时支持 block 和 no-block socket。在这种做法中，内核告诉你一个文件描述符是否就绪了，然后你可以对这个就绪的 fd 进行 IO 操作。如果你不作任何操作，内核还是会继续通知你的，所以，这种模式编程出错误可能性要小一点。传统的 select()/poll() 都是这种模型的代表。
+
+- 优点：当进行socket通信的时候，保证了数据的完整输出，进行IO操作的时候，如果还有数据，就会一直的通知你
+- 缺点：由于只要还有数据，内核就会不停的从内核空间转到用户空间，所有占用了大量内核资源，试想一下当有大量数据到来的时候，每次读取一个字节，这样就会不停的进行切换。内核资源的浪费严重。效率来讲也是很低的
+
+ET(edge-triggered)：
+
+边沿触发是高速工作方式，只支持 no-block socket。在这种模式下，当描述符从未就绪变为就绪时，内核通过 epoll() 告诉你。然后它会假设你知道文件描述符已经就绪，并且不会再为那个文件描述符发送更多的就绪通知。请注意，如果一直不对这个 fd 作 IO 操作(从而导致它再次变成未就绪)，内核不会发送更多的通知。
+
+- 优点：每次内核只会通知一次，大大减少了内核资源的浪费，提高效率
+- 缺点：不能保证数据的完整。不能及时的取出所有的数据
+- 应用场景： 处理大数据。使用 non-block 模式的 socket
+
+## 总结
+
+
+
+https://zhuanlan.zhihu.com/p/427512269
