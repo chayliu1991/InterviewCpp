@@ -61,7 +61,7 @@ int listen (int socketfd, int backlog);
 - 服务端收到 ACK 确认包后，就进⼊了最后的 CLOSE 状态  
 - 客户端经过 2MSL 时间之后，也进⼊ CLOSE 状态  
 
-#  IO 多路复用
+#  阻塞 IO 与非阻塞 IO
 
 ## 阻塞 IO
 
@@ -78,6 +78,7 @@ while(1) {
   close(connfd);     // 关闭连接，循环等待下一个连接
 }
 ```
+
 ![](./img/socket_program.gif)
 
 可以看到，服务端的线程阻塞在了两个地方，一个是 accept 函数，一个是 read 函数。如果再把 read 函数的细节展开，我们会发现其阻塞在了两个阶段：
@@ -127,6 +128,14 @@ int n = read(connfd, buffer) != SUCCESS);
 非阻塞的 read，指的是在数据到达前，即数据还未到达网卡，或者到达网卡但还没有拷贝到内核缓冲区之前，这个阶段是非阻塞的。当数据已到达内核缓冲区，此时调用 read 函数仍然是阻塞的，需要等待数据从内核缓冲区拷贝到用户缓冲区，才能返回。
 
 ![](./img/non_blocked_io.png)
+
+## 小结
+
+![](./img/read_write.png)
+
+#  IO 多路复用
+
+
 
 但是为每个客户端创建一个线程，服务器端的线程资源很容易被耗光。
 
@@ -189,7 +198,7 @@ void FD_CLR(int fd, fd_set *set); //@ 用来把对应套接字 fd 的元素，a[
 int  FD_ISSET(int fd, fd_set *set); //@ 对这个向量进行检测，判断出对应套接字的元素 a[fd] 是 0 还是1
 ```
 
-### 文件描述符就绪条件
+文件描述符就绪条件：
 
 套接字可读：
 
@@ -290,6 +299,8 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
 
 ![](./img/epoll.gif)
 
+完整流程：
+
 ![](./img/epoll_process.png)
 
 事件类型：
@@ -301,7 +312,7 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
 - EPOLLET：设置为 edge-triggered，默认为 level-triggered
 - EPOLLONESHOT：只监听一次事件，当监听完这次事件之后，如果还需要继续监听这个socket的话，需要再次把这个 socket 加入到 EPOLL 队列里
 
-### 两种模式
+两种模式：
 
 LT(level triggered)：
 
