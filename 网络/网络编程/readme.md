@@ -61,6 +61,10 @@ int listen (int socketfd, int backlog);
 - 服务端收到 ACK 确认包后，就进⼊了最后的 CLOSE 状态  
 - 客户端经过 2MSL 时间之后，也进⼊ CLOSE 状态  
 
+## UDP 编程
+
+![](./img/udp.png)
+
 #  阻塞 IO 与非阻塞 IO
 
 ## 阻塞 IO
